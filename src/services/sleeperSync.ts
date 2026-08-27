@@ -24,10 +24,22 @@ export function normalizeName(name: string): string {
     .trim()
 }
 
+/**
+ * A printed cheat sheet abbreviates first names to save space - "P. Mahomes II",
+ * "A. St. Brown", "J. Smith-Njigba" - while Sleeper always sends the full name.
+ * This key collapses both sides to "first initial + last name" so they meet.
+ */
+export function initialKey(name: string): string {
+  const parts = normalizeName(name).split(' ').filter(Boolean)
+  if (parts.length === 0) return ''
+  if (parts.length === 1) return parts[0]
+  return `${parts[0][0]}|${parts[parts.length - 1]}`
+}
+
 export interface MatchResult {
   player: Player | null
   /** how the match was made, for auditing a wrong pick later */
-  how: 'exact' | 'name-position' | 'name-only' | 'team-defense' | 'none'
+  how: 'exact' | 'name-position' | 'name-only' | 'initial-team' | 'team-defense' | 'none'
 }
 
 /**
@@ -64,6 +76,17 @@ export function matchPlayer(pick: SleeperDraftPick, players: Player[]): MatchRes
   // Name alone, only when it is unambiguous on the whole board.
   const nameOnly = players.filter((p) => normalizeName(p.name) === key)
   if (nameOnly.length === 1) return { player: nameOnly[0], how: 'name-only' }
+
+  // Abbreviated first name on one side ("P. Mahomes II" vs "Patrick Mahomes").
+  // Position AND team must both agree here, and the result must be unique -
+  // first initial plus surname is not specific enough on its own.
+  const ik = initialKey(pick.playerName)
+  if (ik.includes('|')) {
+    const byInitial = players.filter(
+      (p) => p.position === pos && p.team.toUpperCase() === team && initialKey(p.name) === ik,
+    )
+    if (byInitial.length === 1) return { player: byInitial[0], how: 'initial-team' }
+  }
 
   return { player: null, how: 'none' }
 }

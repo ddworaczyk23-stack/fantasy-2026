@@ -1,21 +1,24 @@
 import { useMemo, useRef, useState } from 'react'
 import { useDraftStore } from '../store/draftStore'
-import { SAMPLE_DATA_LABEL } from '../data/samplePlayers'
+import { SAMPLE_DATA_LABEL, makeSamplePlayers } from '../data/samplePlayers'
+import { FP_DERIVED_LABEL, FP_SOURCE_LABEL, makeFantasyProsBoard } from '../data/fantasyProsBoard'
 import { csvTemplate, playersToCsv, parsePlayersCsv, downloadText } from '../services/csv'
 import { POSITIONS } from '../types'
 import type { CsvImportResult, Position } from '../types'
-import { setIsSampleData, useIsSampleData } from '../components/sampleDataFlag'
+import { describeBoardSource, setBoardSource, useBoardSource } from '../components/sampleDataFlag'
 import Panel from '../components/Panel'
 import EmptyState from '../components/EmptyState'
 import ConfirmButton from '../components/ConfirmButton'
 import RankRow from '../components/rankings/RankRow'
 
 export default function Rankings() {
+  const settings = useDraftStore((s) => s.settings)
   const players = useDraftStore((s) => s.players)
   const setPlayers = useDraftStore((s) => s.setPlayers)
   const updatePlayer = useDraftStore((s) => s.updatePlayer)
   const togglePlayerTag = useDraftStore((s) => s.togglePlayerTag)
-  const isSample = useIsSampleData()
+  const boardSource = useBoardSource()
+  const boardBadge = describeBoardSource(boardSource)
 
   const [search, setSearch] = useState('')
   const [posFilter, setPosFilter] = useState<Set<Position>>(new Set())
@@ -61,7 +64,7 @@ export default function Rankings() {
   function confirmImport() {
     if (!importResult) return
     setPlayers(importResult.players)
-    setIsSampleData(false)
+    setBoardSource('imported')
     setImportResult(null)
   }
 
@@ -83,13 +86,56 @@ export default function Rankings() {
   return (
     <div className="draft-room">
       <div className="draft-room__col" style={{ gridColumn: '1 / -1' }}>
-        {isSample && (
-          <Panel title="Sample data" subtitle={SAMPLE_DATA_LABEL}>
+        <Panel title="Board in use" subtitle={boardBadge.text}>
+          {boardSource === 'fantasypros' && (
+            <>
+              <p className="text-sm">{FP_SOURCE_LABEL}</p>
+              <p className="text-dim text-sm">{FP_DERIVED_LABEL}</p>
+              <ul className="plain-list text-dim text-sm">
+                <li>
+                  • This sheet has no ADP, so &quot;value vs ADP&quot; reads neutral. Import a file with
+                  an ADP column to switch that signal on.
+                </li>
+                <li>• No bye weeks on this sheet, so bye-conflict warnings stay off.</li>
+                <li>• Upside, floor and risk are neutral. Tag players below to steer the engine.</li>
+              </ul>
+            </>
+          )}
+          {boardSource === 'imported' && (
             <p className="text-dim text-sm">
-              You are ranking the bundled sample board. Import your own CSV below to replace it before draft day.
+              These rankings came from a file you imported. Reload a bundled board below if you want
+              to start over.
             </p>
-          </Panel>
-        )}
+          )}
+          {boardSource === 'sample' && (
+            <p className="text-dim text-sm">
+              You are on invented demo data ({SAMPLE_DATA_LABEL}). Load the FantasyPros board or
+              import your own before draft day.
+            </p>
+          )}
+          <div className="flex-row flex-wrap mt-sm">
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setPlayers(makeFantasyProsBoard(settings).players)
+                setBoardSource('fantasypros')
+              }}
+            >
+              Load FantasyPros 2026 board
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={() => {
+                setPlayers(makeSamplePlayers())
+                setBoardSource('sample')
+              }}
+            >
+              Load demo sample board
+            </button>
+          </div>
+        </Panel>
 
         <Panel title="Import / Export">
           <div className="flex-row flex-wrap">

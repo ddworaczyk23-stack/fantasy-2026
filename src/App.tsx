@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useDraftStore, useEngineContext, useRecommendation } from './store/draftStore'
 import { teamForPick } from './engine/picks'
-import { useIsSampleData } from './components/sampleDataFlag'
+import { describeBoardSource, useBoardSource } from './components/sampleDataFlag'
 import ErrorBoundary from './components/ErrorBoundary'
 import ConfirmButton from './components/ConfirmButton'
 import DraftRoom from './views/DraftRoom'
@@ -40,7 +40,7 @@ function AppShell() {
 
   const ctx = useEngineContext()
   const recommendation = useRecommendation()
-  const isSample = useIsSampleData()
+  const boardBadge = describeBoardSource(useBoardSource())
 
   useEffect(() => {
     hydrate()
@@ -78,7 +78,9 @@ function AppShell() {
     <div className="app">
       <header className="app-header">
         <div className="app-header__brand">Draft Day Command Center</div>
-        {isSample && <span className="sample-badge">SAMPLE DATA — NOT LIVE</span>}
+        <span className={`sample-badge sample-badge--${boardBadge.tone}`} title={boardBadge.title}>
+          {boardBadge.text}
+        </span>
         <div className="pick-indicator">
           {draftComplete ? (
             <strong>Draft complete</strong>

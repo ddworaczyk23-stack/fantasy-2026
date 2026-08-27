@@ -20,7 +20,7 @@ Then open http://localhost:5173
 Other commands:
 
 ```bash
-npm run test        # run the engine + CSV unit tests once
+npm run test        # run all 142 tests once
 npm run test:watch  # watch mode
 npm run typecheck   # tsc --noEmit
 npm run build       # production build into dist/
@@ -53,8 +53,8 @@ CSV import and export.
 ADP-versus-actual variance, and who is competing for your target position.
 
 **Settings** — league setup, roster slots, your exact pick numbers, decision-engine
-weights, the DST/K rule, Sleeper Sync placeholder, import/export, and the
-Draft Day Checklist.
+weights, the DST/K rule, live Sleeper sync, import/export, and the Draft Day
+Checklist.
 
 ---
 
@@ -93,31 +93,64 @@ change the weights.
 
 ---
 
-## Before draft day: load your real rankings
+## The board you are drafting from
 
-The app ships with a board clearly labelled **SAMPLE 2026 PPR BOARD - NOT LIVE
-DATA**. It is there so the tool is usable the second you open it. It is not
-current data and it is not anyone's published rankings. Replace it.
+The app loads the **FantasyPros 2026 PPR positional cheat sheet (08/26/2026)** by
+default — 372 players: 50 QB, 100 RB, 100 WR, 50 TE, 40 K, 32 D/ST. IDP is
+omitted; this league does not use it.
 
-Two ways:
+The raw sheet lives in one plain-text file,
+[`src/data/raw/fantasypros-2026-cheatsheet.txt`](src/data/raw/fantasypros-2026-cheatsheet.txt).
+Editing that file updates the board. No code changes, no build step.
 
-**1. CSV import (recommended).**
+### How the overall board is built
 
-A **FantasyPros export works as-is** — no editing. Download their draft cheat
-sheet or rankings CSV and upload it. The app detects the FantasyPros layout
-(`RK`, `TIERS`, `PLAYER NAME`, `TEAM`, `POS`, `BYE WEEK`) and converts it: it
-splits `WR12` into position plus positional rank, maps `DST`/`DEF` and `K`,
-drops the attribution line at the bottom, and renumbers FantasyPros' *overall*
-tiers into per-position tiers. If the file has no ADP column the import says so
-plainly and sets ADP equal to the ranking — which makes value-vs-ADP read
-neutral until you import a file that does have real ADP.
+A positional cheat sheet gives you `RB1 ... RB100` and `WR1 ... WR100` and
+nothing else. The engine needs one overall order, and simply stacking the
+positions would put every quarterback ahead of every running back.
 
-For your own board, go to **Rankings & Tiers → Download blank template**, or grab
-[`public/rankings-template.csv`](public/rankings-template.csv). Fill it with
-whichever rankings you trust, then **Upload CSV**. The import previews its
-errors and warnings before it replaces anything.
+So the app derives it the way draft analysts have since Value Based Drafting:
+turn each positional rank into an estimated point total, subtract what you could
+get free at that position (replacement level for **your** team count and
+lineup), and rank everyone by the surplus.
 
-Columns:
+Two useful things fall straight out of that, and both match how this app drafts:
+
+- **Quarterbacks slide.** QB2 and QB12 both start for someone in a 1-QB league,
+  so the surplus at QB is small even though the raw points are huge. Josh Allen
+  lands around pick 22, not pick 3.
+- **Kickers and defenses sink to the bottom**, below every skill player, because
+  both are streamable all season.
+
+Tiers are cut at the real drop-offs in that surplus, calibrated on the starter
+range so the flat tail of the curve does not swallow the breaks at the top.
+
+### What a cheat sheet cannot give you
+
+The app states these plainly in the Rankings screen rather than papering over them:
+
+| Missing | Effect | Fix |
+| --- | --- | --- |
+| ADP | "Value vs ADP" reads neutral | Import a file with an ADP column |
+| Bye weeks | Bye-conflict warnings stay off | Import byes, or set them in Rankings |
+| Upside / floor / risk | Those score components sit neutral | Tag players target/fade/sleeper in Rankings |
+
+Everything else — tiers, scarcity, roster fit, can-I-wait, the draft-room read —
+works fully off the cheat sheet alone.
+
+---
+
+## Loading different rankings
+
+**A FantasyPros CSV export works as-is** — no editing. Download their draft cheat
+sheet or rankings CSV and upload it in **Rankings & Tiers**. The app detects the
+FantasyPros layout (`RK`, `TIERS`, `PLAYER NAME`, `TEAM`, `POS`, `BYE WEEK`),
+splits `WR12` into position plus positional rank, maps `DST`/`DEF` and `K`, drops
+their attribution line, and renumbers their overall tiers into per-position tiers.
+Their CSV exports usually carry bye weeks, which turns the bye panel on.
+
+**Your own board.** Use **Download blank template**, or grab
+[`public/rankings-template.csv`](public/rankings-template.csv):
 
 ```
 name,team,position,bye,overallRank,posRank,tier,adp,projPoints,upside,floor,
@@ -128,12 +161,15 @@ Only `name` and `position` are required. Missing `overallRank` is inferred from
 ADP order; missing `posRank` and `tier` are derived. `tags` is pipe-separated
 (`high-target|target`). Fields containing commas must be double-quoted.
 
-**2. Edit in place.** Rankings & Tiers lets you set a `customRank` override,
-nudge players up and down, change tiers, and tag players as target / fade /
-avoid-at-cost / sleeper / injury-concern. `customRank` always beats
-`overallRank` in the engine.
+**Edit in place.** Rankings & Tiers lets you set a `customRank` override, nudge
+players up and down, change tiers, and tag players target / fade / avoid-at-cost
+/ sleeper / injury-concern. `customRank` always beats `overallRank` in the engine.
 
-Do this the night before, then **Settings → Export state JSON** to back it up.
+The Rankings screen also has **Load FantasyPros 2026 board** and **Load demo
+sample board** if you want to start over. The header badge always names which
+board is live.
+
+Back your board up the night before with **Settings → Export state JSON**.
 
 ---
 
@@ -189,6 +225,12 @@ last name, position and team, so there is no 5MB player-ID file to download.
 Matching goes strictest-first: name + position + team, then name + position,
 then an unambiguous name alone. Defenses match on team only, never on name.
 
+The cheat sheet abbreviates first names (`P. Mahomes II`, `A. St. Brown`,
+`J. Smith-Njigba`) while Sleeper always sends the full name, so there is one more
+step: first initial + surname, but **only** when position and team both agree and
+the result is unique. `Patrick Mahomes / QB / KC` matches `P. Mahomes II`;
+`Patrick Mahomes / QB / BUF` matches nothing rather than something wrong.
+
 **A pick that cannot be matched is never guessed at.** It gets listed in the
 Sleeper panel by name, and you draft that player manually. Silently mismatching
 a pick would be worse than telling you about it.
@@ -230,7 +272,7 @@ public/rankings-template.csv
 The engine is pure functions with no React, storage or clock dependencies, which
 is why it can be unit tested.
 
-`npm run test` runs 105 tests across four layers:
+`npm run test` runs 142 tests across five layers:
 
 - **Engine** - pick and snake math, tier states and cliff alerts, can-I-wait
   probability, the Draft Score strategy rules, and full recommendations.
@@ -242,7 +284,12 @@ is why it can be unit tested.
   the sample draft simulator is deterministic and takes the top of the board,
   and the real UI mounts in a DOM where every tab renders, drafting advances the
   pick, and undo restores state.
-- **Sleeper sync** - name normalisation across suffixes and punctuation,
+- **The board** - the cheat sheet parses to exactly 372 players, positional order
+  is preserved, QB/K/D-ST are kept out of round 1, K and D/ST sort below every
+  skill player, tiers are real groups rather than one player each, and the engine
+  produces a legal RB/WR-first draft off the real board.
+- **Sleeper sync** - name normalisation across suffixes, punctuation and
+  abbreviated first names,
   defense-by-team matching, unmatched picks reported rather than dropped, no
   player drafted twice, idempotent re-syncs, and league/roster/scoring mapping.
 
@@ -250,9 +297,12 @@ is why it can be unit tested.
 
 ## Honest limits
 
-- The bundled player data is **sample data**. Import your own before drafting.
-- Projections are estimates, not a model output. The engine's job is ranking the
-  decision, not predicting the season.
+- The bundled board is FantasyPros' real positional ranking, but the **overall
+  order, tiers and projected points are derived** from it, not published by
+  FantasyPros. They are estimates whose job is ranking the decision, not
+  predicting the season.
+- Refresh the cheat-sheet text file before draft day. Rankings from 08/26/2026 go
+  stale fast once preseason news lands.
 - Survival probability is a calibrated heuristic over ADP, positional runs and
   opponent needs. It is directionally useful, not a guarantee.
 - No live news or injury feed.

@@ -16,6 +16,7 @@ import { DEFAULT_SETTINGS, DEFAULT_SLEEPER, DEFAULT_WEIGHTS, STATE_VERSION } fro
 import { currentPickNumber, roundForPick, slotForPick, teamForPick } from '../engine/picks'
 import { recommend } from '../engine'
 import { makeSamplePlayers } from '../data/samplePlayers'
+import { makeFantasyProsPlayers } from '../data/fantasyProsBoard'
 import { makeSampleDraft, makeSampleTeams } from '../data/sampleLeague'
 import { clearState, loadState, saveState } from '../services/persistence'
 import { getSleeperAdapter, type SleeperLeagueSummary } from '../services/sleeperAdapter'
@@ -68,7 +69,7 @@ export interface DraftStore {
 
 function initialState() {
   return {
-    players: makeSamplePlayers(),
+    players: makeFantasyProsPlayers(DEFAULT_SETTINGS),
     teams: makeSampleTeams(DEFAULT_SETTINGS.teams, DEFAULT_SETTINGS.mySlot),
     picks: [] as DraftPick[],
     settings: { ...DEFAULT_SETTINGS },
@@ -128,7 +129,7 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
     const saved = loadState()
     if (saved) {
       set({
-        players: Array.isArray(saved.players) && saved.players.length > 0 ? saved.players : makeSamplePlayers(),
+        players: Array.isArray(saved.players) && saved.players.length > 0 ? saved.players : makeFantasyProsPlayers(DEFAULT_SETTINGS),
         picks: Array.isArray(saved.picks) ? saved.picks : [],
         teams: Array.isArray(saved.teams) && saved.teams.length > 0 ? saved.teams : get().teams,
         settings: { ...DEFAULT_SETTINGS, ...saved.settings },

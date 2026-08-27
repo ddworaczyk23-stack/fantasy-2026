@@ -35,13 +35,20 @@ async function click(el: HTMLElement) {
 }
 
 describe('app shell', () => {
-  it('mounts, shows the sample-data badge, and never renders undefined/NaN', async () => {
+  it('mounts, names the loaded board, and never renders undefined/NaN', async () => {
     const { host } = await mount()
     const text = host.textContent ?? ''
     expect(text.length).toBeGreaterThan(5000)
-    expect(text).toMatch(/SAMPLE/i)
+    // the header must always say which board is loaded
+    expect(text).toMatch(/FANTASYPROS 2026 PPR/)
     expect(text).not.toMatch(/undefined|NaN|\[object Object\]/)
     expect(text).not.toMatch(/Something went wrong/)
+  })
+
+  it('loads real FantasyPros players, not the demo board', async () => {
+    const { host } = await mount()
+    const text = host.textContent ?? ''
+    expect(text).toMatch(/Jahmyr Gibbs|Ja'Marr Chase|Bijan Robinson/)
   })
 
   it('shows a not-on-the-clock state at pick 1 and a real recommendation at my pick', async () => {

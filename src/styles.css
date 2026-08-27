@@ -189,6 +189,16 @@ a { color: inherit; }
   padding: 4px 9px;
   border-radius: 999px;
   white-space: nowrap;
+  cursor: help;
+}
+/* A real board is not a warning; only the invented demo board is. */
+.sample-badge--good {
+  background: var(--good, #1f7a4d);
+  color: var(--good-text, #ffffff);
+}
+.sample-badge--warn {
+  background: var(--warn);
+  color: var(--warn-text);
 }
 .pick-indicator {
   display: flex;

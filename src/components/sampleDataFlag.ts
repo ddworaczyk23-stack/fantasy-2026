@@ -1,24 +1,29 @@
 import { useSyncExternalStore } from 'react'
 
 // ============================================================================
-// UI-only presentation flag: "is the board still the shipped sample data".
+// UI-only presentation flag: WHICH board is currently loaded.
+//
 // This is NOT part of the store contract (docs/CONTRACT.md deliberately does
-// not expose it), so it lives here as a tiny external store the UI layer
-// owns. It starts true (hydrate() loads sample data by default) and flips to
-// false the moment the user replaces the board with a real CSV import. It
-// flips back to true if they explicitly load the bundled sample draft again.
+// not expose it), so it lives here as a tiny external store the UI layer owns.
+//
+//   'fantasypros' - the bundled FantasyPros 2026 PPR positional cheat sheet.
+//                   Real rankings; overall order and tiers are derived.
+//   'imported'    - the user replaced the board via CSV or a state import.
+//   'sample'      - the invented demo board, only loaded on request.
 // ============================================================================
 
-let isSample = true
+export type BoardSource = 'fantasypros' | 'imported' | 'sample'
+
+let source: BoardSource = 'fantasypros'
 const listeners = new Set<() => void>()
 
-export function getIsSampleData(): boolean {
-  return isSample
+export function getBoardSource(): BoardSource {
+  return source
 }
 
-export function setIsSampleData(value: boolean): void {
-  if (isSample === value) return
-  isSample = value
+export function setBoardSource(value: BoardSource): void {
+  if (source === value) return
+  source = value
   listeners.forEach((l) => l())
 }
 
@@ -27,6 +32,55 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener)
 }
 
+export function useBoardSource(): BoardSource {
+  return useSyncExternalStore(subscribe, getBoardSource, getBoardSource)
+}
+
+export interface BoardBadge {
+  text: string
+  title: string
+  tone: 'good' | 'warn'
+}
+
+export function describeBoardSource(s: BoardSource): BoardBadge {
+  switch (s) {
+    case 'fantasypros':
+      return {
+        text: 'FANTASYPROS 2026 PPR',
+        title:
+          'FantasyPros positional cheat sheet, 08/26/2026. Overall rank and tiers are derived ' +
+          'from positional rank using value over replacement. No ADP or bye weeks on this sheet.',
+        tone: 'good',
+      }
+    case 'imported':
+      return {
+        text: 'YOUR IMPORTED BOARD',
+        title: 'These rankings came from a file you imported.',
+        tone: 'good',
+      }
+    case 'sample':
+    default:
+      return {
+        text: 'SAMPLE DATA — NOT LIVE',
+        title: 'Invented demo data. Load the FantasyPros board or import your own before drafting.',
+        tone: 'warn',
+      }
+  }
+}
+
+// --- Back-compat shims for existing call sites -----------------------------
+
+/** @deprecated use useBoardSource() */
 export function useIsSampleData(): boolean {
-  return useSyncExternalStore(subscribe, getIsSampleData, getIsSampleData)
+  return useBoardSource() === 'sample'
+}
+
+/** @deprecated use setBoardSource() */
+export function setIsSampleData(value: boolean): void {
+  setBoardSource(value ? 'sample' : 'imported')
+}
+
+/** @deprecated use getBoardSource() */
+export function getIsSampleData(): boolean {
+  return getBoardSource() === 'sample'
 }
