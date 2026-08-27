@@ -20,9 +20,11 @@ export const DEFAULT_SETTINGS: LeagueSettings = {
   thirdRoundReversal: false,
   mySlot: 8,
   roster: DEFAULT_ROSTER,
-  // David's stated board: 1.08, 2.08, 3.09, then 9th every round after.
-  // Standard snake does not produce that, so it ships as an explicit override.
-  myPickOverrides: [8, 20, 33, 45, 57, 69, 81, 93, 105, 117, 129, 141, 153, 165, 177],
+  // Real board: 1.08 and 2.05 (a normal snake from slot 8), then the 9th slot
+  // from round 3 onward, still snaking - 3.09, 4.04, 5.09, 6.04, and so on.
+  // No single slot produces that, so the pick numbers ship as an explicit
+  // override. Clear it in Settings to fall back to plain snake math.
+  myPickOverrides: [8, 17, 33, 40, 57, 64, 81, 88, 105, 112, 129, 136, 153, 160, 177],
   kdstLastRounds: 2,
   allowEarlyKDst: false,
 }
@@ -43,6 +45,13 @@ export const DEFAULT_SLEEPER: SleeperConfig = {
   status: 'manual-mode',
   lastSyncAt: null,
   lastError: null,
+  userId: '',
+  draftId: '',
+  adapter: 'live',
+  autoSync: false,
+  // 8s is ~7 calls/minute against Sleeper's 1000/minute ceiling.
+  pollSeconds: 8,
+  unmatched: [],
 }
 
 export const STORAGE_KEY = 'ddcc:state:v1'

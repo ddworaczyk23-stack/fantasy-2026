@@ -1,0 +1,262 @@
+import type { DraftPick, LeagueSettings, LeagueTeam, Player, RosterSlots } from '../types'
+import type { SleeperDraftInfo, SleeperDraftPick, SleeperLeagueInfo } from './sleeperAdapter'
+
+// ============================================================================
+// Pure mapping between Sleeper's world and this app's board.
+// No network, no React, no storage - so all of it is unit tested.
+// ============================================================================
+
+const SUFFIXES = new Set(['jr', 'sr', 'ii', 'iii', 'iv', 'v'])
+
+/**
+ * Reduce a player name to a comparable key: lowercase, no punctuation, no
+ * generational suffix. "Ja'Marr Chase" and "JaMarr Chase" collapse together,
+ * and "Brian Robinson Jr." matches "Brian Robinson".
+ */
+export function normalizeName(name: string): string {
+  return (name ?? '')
+    .toLowerCase()
+    .replace(/[.'`’]/g, '')
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/[\s-]+/)
+    .filter((part) => part.length > 0 && !SUFFIXES.has(part))
+    .join(' ')
+    .trim()
+}
+
+export interface MatchResult {
+  player: Player | null
+  /** how the match was made, for auditing a wrong pick later */
+  how: 'exact' | 'name-position' | 'name-only' | 'team-defense' | 'none'
+}
+
+/**
+ * Find the board player a Sleeper pick refers to.
+ *
+ * Sleeper draft picks carry first_name/last_name/position/team in metadata,
+ * so no 5MB player-id file is needed. Matching is deliberately strict-first
+ * and only loosens one step at a time, and it never guesses across positions.
+ */
+export function matchPlayer(pick: SleeperDraftPick, players: Player[]): MatchResult {
+  const pos = pick.position
+  const team = (pick.team ?? '').toUpperCase()
+
+  // Defenses: Sleeper's "team" IS the identity. Names differ (Broncos vs Denver
+  // Broncos vs DEN), so never match a defense by name.
+  if (pos === 'DST') {
+    const byTeam = players.find((p) => p.position === 'DST' && p.team.toUpperCase() === team)
+    return byTeam ? { player: byTeam, how: 'team-defense' } : { player: null, how: 'none' }
+  }
+
+  const key = normalizeName(pick.playerName)
+  if (!key) return { player: null, how: 'none' }
+
+  const exact = players.find(
+    (p) => normalizeName(p.name) === key && p.position === pos && p.team.toUpperCase() === team,
+  )
+  if (exact) return { player: exact, how: 'exact' }
+
+  // Same name and position but a different team - a real player who was traded
+  // or whose team field is stale on one side. Still a confident match.
+  const namePos = players.filter((p) => normalizeName(p.name) === key && p.position === pos)
+  if (namePos.length === 1) return { player: namePos[0], how: 'name-position' }
+
+  // Name alone, only when it is unambiguous on the whole board.
+  const nameOnly = players.filter((p) => normalizeName(p.name) === key)
+  if (nameOnly.length === 1) return { player: nameOnly[0], how: 'name-only' }
+
+  return { player: null, how: 'none' }
+}
+
+export interface UnmatchedPick {
+  pickNumber: number
+  playerName: string
+  position: string
+  team: string
+}
+
+export interface ReconcileResult {
+  picks: DraftPick[]
+  unmatched: UnmatchedPick[]
+  /** picks Sleeper reports that we successfully placed on the board */
+  matched: number
+  /** picks Sleeper reports in total */
+  total: number
+}
+
+/**
+ * Turn Sleeper's pick list into this app's `DraftPick[]`.
+ *
+ * Rules that matter mid-draft:
+ *   - A Sleeper pick we cannot match is REPORTED, never silently dropped and
+ *     never allowed to shift later picks onto the wrong player.
+ *   - The same board player is never drafted twice, even if Sleeper's feed
+ *     repeats or the board has a duplicate entry.
+ *   - Team assignment comes from the draft slot, so it stays correct even when
+ *     Sleeper's roster ids do not line up with local team ids.
+ */
+export function reconcilePicks(
+  sleeperPicks: SleeperDraftPick[],
+  players: Player[],
+  teams: LeagueTeam[],
+  settings: LeagueSettings,
+): ReconcileResult {
+  const picks: DraftPick[] = []
+  const unmatched: UnmatchedPick[] = []
+  const used = new Set<string>()
+
+  for (const sp of [...sleeperPicks].sort((a, b) => a.pickNumber - b.pickNumber)) {
+    const { player } = matchPlayer(sp, players)
+    if (!player || used.has(player.id)) {
+      unmatched.push({
+        pickNumber: sp.pickNumber,
+        playerName: sp.playerName,
+        position: sp.position,
+        team: sp.team,
+      })
+      continue
+    }
+    used.add(player.id)
+    const team = teams.find((t) => t.slot === sp.slot)
+    picks.push({
+      pickNumber: sp.pickNumber,
+      round: sp.round,
+      slot: sp.slot,
+      teamId: team?.id ?? `team-${sp.slot}`,
+      playerId: player.id,
+      timestamp: 0,
+    })
+  }
+
+  // Renumber so the board has no holes where an unmatched pick was skipped.
+  // Sleeper's own pick_no is kept in order; only the local numbering is
+  // compacted, because the engine derives "who is on the clock" from count.
+  picks.sort((a, b) => a.pickNumber - b.pickNumber)
+  picks.forEach((p, i) => {
+    p.pickNumber = i + 1
+    p.round = Math.floor(i / settings.teams) + 1
+  })
+
+  return { picks, unmatched, matched: picks.length, total: sleeperPicks.length }
+}
+
+/** Map Sleeper's roster_positions array onto this app's roster slot counts. */
+export function rosterSlotsFromSleeper(rosterPositions: string[]): RosterSlots {
+  const slots: RosterSlots = { QB: 0, RB: 0, WR: 0, TE: 0, FLEX: 0, DST: 0, K: 0, BENCH: 0 }
+  for (const raw of rosterPositions) {
+    const p = (raw ?? '').toUpperCase().trim()
+    switch (p) {
+      case 'QB':
+        slots.QB++
+        break
+      case 'RB':
+        slots.RB++
+        break
+      case 'WR':
+        slots.WR++
+        break
+      case 'TE':
+        slots.TE++
+        break
+      case 'FLEX':
+      case 'WRRB_FLEX':
+      case 'REC_FLEX':
+      case 'WRRB_WRT':
+        slots.FLEX++
+        break
+      case 'DEF':
+      case 'DST':
+        slots.DST++
+        break
+      case 'K':
+      case 'PK':
+        slots.K++
+        break
+      case 'BN':
+      case 'TAXI':
+      case 'IR':
+        slots.BENCH++
+        break
+      case 'SUPER_FLEX':
+        // superflex is handled by the league setting, not a roster slot here
+        slots.FLEX++
+        break
+      default:
+        slots.BENCH++
+        break
+    }
+  }
+  return slots
+}
+
+export interface ImportedLeague {
+  settings: Partial<LeagueSettings>
+  teams: LeagueTeam[]
+  notes: string[]
+}
+
+/**
+ * Build local league settings and teams from a Sleeper league + draft.
+ * `myUserId` positions the user in the draft order when Sleeper exposes it.
+ */
+export function importLeague(
+  league: SleeperLeagueInfo,
+  draft: SleeperDraftInfo | null,
+  myUserId: string,
+  existingTeams: LeagueTeam[],
+  userNames: Record<string, string>,
+): ImportedLeague {
+  const notes: string[] = []
+  const teamCount = draft?.teams ?? league.teams ?? 12
+  const rounds = draft?.rounds ?? 15
+  const roster = rosterSlotsFromSleeper(league.rosterPositions)
+  const superflex = league.rosterPositions.some((p) => (p ?? '').toUpperCase() === 'SUPER_FLEX')
+
+  let mySlot = 0
+  if (draft?.draftOrder && myUserId && draft.draftOrder[myUserId]) {
+    mySlot = draft.draftOrder[myUserId]
+    notes.push(`Your draft slot is ${mySlot}, read from the Sleeper draft order.`)
+  } else {
+    notes.push('Sleeper did not expose a draft order yet, so your draft slot was left as-is.')
+  }
+
+  const teams: LeagueTeam[] = []
+  const slotToUser = new Map<number, string>()
+  if (draft?.draftOrder) {
+    for (const [userId, slot] of Object.entries(draft.draftOrder)) slotToUser.set(slot, userId)
+  }
+  for (let slot = 1; slot <= teamCount; slot++) {
+    const userId = slotToUser.get(slot)
+    const isMe = mySlot > 0 ? slot === mySlot : (existingTeams.find((t) => t.slot === slot)?.isMe ?? false)
+    const sleeperName = userId ? userNames[userId] : undefined
+    const previous = existingTeams.find((t) => t.slot === slot)
+    teams.push({
+      id: previous?.id ?? `team-${slot}`,
+      name: isMe ? 'My Team' : (sleeperName ?? previous?.name ?? `Team ${slot}`),
+      slot,
+      isMe,
+    })
+  }
+
+  if (draft && draft.type !== 'snake') {
+    notes.push(`Sleeper reports a "${draft.type}" draft, so snake order was turned off.`)
+  }
+  if (draft?.reversalRound) {
+    notes.push(`Third-round reversal detected (reversal round ${draft.reversalRound}).`)
+  }
+
+  const settings: Partial<LeagueSettings> = {
+    teams: teamCount,
+    rounds,
+    scoring: league.scoring,
+    superflex,
+    roster,
+    snake: draft ? draft.type === 'snake' : true,
+    thirdRoundReversal: Boolean(draft?.reversalRound),
+    // Sleeper knows the true order, so a hand-typed override no longer applies.
+    myPickOverrides: null,
+  }
+  if (mySlot > 0) settings.mySlot = mySlot
+
+  return { settings, teams, notes }
+}

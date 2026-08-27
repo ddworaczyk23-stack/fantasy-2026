@@ -15,8 +15,11 @@ function ctxAt(throughPick: number): EngineContext {
 }
 
 describe('live smoke test on the real sample board', () => {
-  it('my pick numbers match the stated 1.08 / 2.08 / 3.09 board', () => {
-    expect(myPickNumbers(DEFAULT_SETTINGS).slice(0, 4)).toEqual([8, 20, 33, 45])
+  it('my pick numbers match the real 1.08 / 2.05 / 3.09 board', () => {
+    // slot 8 for rounds 1-2, then the 9th slot from round 3 on, still snaking
+    expect(myPickNumbers(DEFAULT_SETTINGS)).toEqual([
+      8, 17, 33, 40, 57, 64, 81, 88, 105, 112, 129, 136, 153, 160, 177,
+    ])
   })
 
   it('produces a real recommendation at every one of my picks', () => {
@@ -47,7 +50,7 @@ describe('live smoke test on the real sample board', () => {
   })
 
   it('does not recommend a QB in rounds 1-3', () => {
-    for (const p of [8, 20, 33]) {
+    for (const p of myPickNumbers(DEFAULT_SETTINGS).slice(0, 3)) {
       const rec = recommend(ctxAt(p - 1))
       expect(rec.primary!.player.position).not.toBe('QB')
     }
@@ -105,7 +108,7 @@ describe('live smoke test on the real sample board', () => {
   })
 
   it('no panel text contains undefined/NaN anywhere in a mid-draft state', () => {
-    for (const p of [8, 33, 69, 117, 165, 177]) {
+    for (const p of myPickNumbers(DEFAULT_SETTINGS)) {
       const rec = recommend(ctxAt(p - 1))
       const blob = JSON.stringify(rec)
       expect(blob).not.toMatch(/undefined|NaN|\[object Object\]/)

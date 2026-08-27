@@ -102,7 +102,17 @@ current data and it is not anyone's published rankings. Replace it.
 Two ways:
 
 **1. CSV import (recommended).**
-Go to **Rankings & Tiers → Download blank template**, or grab
+
+A **FantasyPros export works as-is** — no editing. Download their draft cheat
+sheet or rankings CSV and upload it. The app detects the FantasyPros layout
+(`RK`, `TIERS`, `PLAYER NAME`, `TEAM`, `POS`, `BYE WEEK`) and converts it: it
+splits `WR12` into position plus positional rank, maps `DST`/`DEF` and `K`,
+drops the attribution line at the bottom, and renumbers FantasyPros' *overall*
+tiers into per-position tiers. If the file has no ADP column the import says so
+plainly and sets ADP equal to the ranking — which makes value-vs-ADP read
+neutral until you import a file that does have real ADP.
+
+For your own board, go to **Rankings & Tiers → Download blank template**, or grab
 [`public/rankings-template.csv`](public/rankings-template.csv). Fill it with
 whichever rankings you trust, then **Upload CSV**. The import previews its
 errors and warnings before it replaces anything.
@@ -155,35 +165,39 @@ Export state JSON.
 
 ---
 
-## Sleeper sync: what works today
+## Sleeper sync: it works
 
-**Today: manual mode only.** Settings has a Sleeper Sync section with fields
-for username, league ID and season, and a four-state indicator — Not Connected,
-Manual Mode, Ready for Import, Sync Available. The "Test connection" button
-runs a **mock adapter** that returns canned data and says so.
+Sleeper's read API is public, unauthenticated, and CORS-open, so the browser
+calls it directly. No API key, no password, no proxy, no backend. Nothing
+secret is stored.
 
-Nothing calls Sleeper. No credentials are stored and none are needed.
+**Settings -> Sleeper Sync**, four buttons in order:
 
-**What a live adapter would need.** Sleeper's read API is public and
-unauthenticated, so secrets were never the blocker. Three real problems are:
+1. **Connect account** - type your Sleeper username, resolves your user ID.
+2. **Find my leagues** - lists your leagues for the season; click Use to pick one.
+   (Or paste the league ID straight from the Sleeper app URL.)
+3. **Import league settings** - pulls team count, rounds, scoring, roster slots,
+   snake/third-round-reversal, every manager's name, and **your real draft slot**
+   from the Sleeper draft order. This overwrites the manual pick-number override.
+4. **Sync draft picks** - pulls every pick made so far onto your board.
 
-1. **CORS.** A browser-only app cannot rely on a third-party host allowing
-   cross-origin reads. Making this reliable means a tiny proxy or a desktop
-   shell — which breaks the "no backend" promise this app is built on.
-2. **Player ID mapping.** Sleeper's player ids are its own. They have to be
-   matched to your CSV's players by name, team and position, and name matching
-   is where sync tools quietly go wrong mid-draft.
-3. **Polling and drift.** A live draft needs frequent polling, and any dropped
-   response or mismatched id silently corrupts the board state — exactly when
-   you have 45 seconds to pick.
+Then tick **Auto-sync** and the app polls during the draft. Minimum 5 seconds;
+the default 8 makes about 7 calls a minute against Sleeper's 1000/minute limit.
 
-The code is ready for it: `src/services/sleeperAdapter.ts` defines the
-`SleeperAdapter` interface, ships `mockSleeperAdapter`, and documents the single
-call site to swap in a live implementation. Nothing else in the app knows or
-cares which adapter it is talking to.
+**How picks are matched.** Each Sleeper pick carries the player's first name,
+last name, position and team, so there is no 5MB player-ID file to download.
+Matching goes strictest-first: name + position + team, then name + position,
+then an unambiguous name alone. Defenses match on team only, never on name.
 
-**Manual entry stays the primary workflow.** It takes about two seconds a pick
-and it cannot silently desync.
+**A pick that cannot be matched is never guessed at.** It gets listed in the
+Sleeper panel by name, and you draft that player manually. Silently mismatching
+a pick would be worse than telling you about it.
+
+**It stays a convenience, not a dependency.** Sync is idempotent - running it
+twice gives the same board. Every request has a timeout. If the network drops
+mid-draft, manual entry keeps working exactly as before.
+
+Set **Data source** to Mock to exercise the whole flow offline with canned data.
 
 ---
 
@@ -216,7 +230,7 @@ public/rankings-template.csv
 The engine is pure functions with no React, storage or clock dependencies, which
 is why it can be unit tested.
 
-`npm run test` runs 71 tests across three layers:
+`npm run test` runs 105 tests across four layers:
 
 - **Engine** - pick and snake math, tier states and cliff alerts, can-I-wait
   probability, the Draft Score strategy rules, and full recommendations.
@@ -224,9 +238,13 @@ is why it can be unit tested.
   rounds, and they are *forced* once the picks remaining no longer exceed the
   mandatory slots still empty. Tier alerts never compare against QB/DST/K, never
   tell a 1-QB drafter to prioritise QB early, and never exceed three at once.
-- **App** - the CSV parser round-trips, the sample draft simulator is
-  deterministic and takes the top of the board, and the real UI mounts in a DOM
-  where every tab renders, drafting advances the pick, and undo restores state.
+- **App** - the CSV parser round-trips, FantasyPros exports import correctly,
+  the sample draft simulator is deterministic and takes the top of the board,
+  and the real UI mounts in a DOM where every tab renders, drafting advances the
+  pick, and undo restores state.
+- **Sleeper sync** - name normalisation across suffixes and punctuation,
+  defense-by-team matching, unmatched picks reported rather than dropped, no
+  player drafted twice, idempotent re-syncs, and league/roster/scoring mapping.
 
 ---
 
@@ -237,5 +255,6 @@ is why it can be unit tested.
   decision, not predicting the season.
 - Survival probability is a calibrated heuristic over ADP, positional runs and
   opponent needs. It is directionally useful, not a guarantee.
-- No live news, injury feed, or Sleeper sync. That is a deliberate trade for
-  something that cannot break while you are on the clock.
+- No live news or injury feed.
+- Sleeper sync is real, but it is still a convenience layer. Manual entry is the
+  path that cannot break while you are on the clock.

@@ -131,6 +131,18 @@ export interface SleeperConfig {
   status: SleeperStatus
   lastSyncAt: number | null
   lastError: string | null
+  /** resolved Sleeper user_id, set once a username verifies */
+  userId: string
+  /** resolved draft_id for the league, set once the league loads */
+  draftId: string
+  /** 'live' hits api.sleeper.app; 'mock' returns canned data offline */
+  adapter: 'live' | 'mock'
+  /** poll the draft automatically while it is running */
+  autoSync: boolean
+  /** seconds between auto-sync polls; Sleeper asks for <1000 calls/min */
+  pollSeconds: number
+  /** picks Sleeper reported that could not be matched to a board player */
+  unmatched: { pickNumber: number; playerName: string; position: string; team: string }[]
 }
 
 // ---------------------------------------------------------------------------

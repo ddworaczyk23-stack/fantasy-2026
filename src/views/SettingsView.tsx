@@ -187,7 +187,7 @@ export default function SettingsView() {
         </Panel>
 
         <WeightsPanel weights={weights} onChange={setWeights} />
-        <SleeperPanel sleeper={sleeper} onChange={setSleeper} />
+        <SleeperPanel />
       </div>
 
       <div className="draft-room__col">

@@ -99,10 +99,15 @@ function ctxWithMyRoster(currentPick: number, myPositions: Position[]): EngineCo
 
 describe('endgame D/ST and K legality', () => {
   const filled: Position[] = ['RB', 'RB', 'WR', 'WR', 'TE', 'RB', 'QB', 'WR', 'RB', 'WR', 'WR', 'RB', 'TE']
+  // Derived, never hardcoded - the league's pick numbers are user-editable.
+  const MY_PICKS = myPickNumbers(settings)
+  const LAST_PICK = MY_PICKS[MY_PICKS.length - 1]
+  const SECOND_LAST = MY_PICKS[MY_PICKS.length - 2]
+  const THIRD_LAST = MY_PICKS[MY_PICKS.length - 3]
 
   it('forces a DST or K at the second-to-last pick when both slots are empty', () => {
-    // pick 165 is round 14 of 15; I have 2 picks left, DST and K both empty
-    const ctx = ctxWithMyRoster(165, filled)
+    // 2 picks left, DST and K both empty
+    const ctx = ctxWithMyRoster(SECOND_LAST, filled)
     const roster = analyzeRoster(MY_TEAM, ctx)
     expect(roster.starters.filter((s) => s.player === null && (s.position === 'DST' || s.position === 'K')))
       .toHaveLength(2)
@@ -113,20 +118,20 @@ describe('endgame D/ST and K legality', () => {
   })
 
   it('forces the remaining mandatory slot at the very last pick', () => {
-    const ctx = ctxWithMyRoster(177, [...filled, 'DST'])
+    const ctx = ctxWithMyRoster(LAST_PICK, [...filled, 'DST'])
     const rec = recommend(ctx)
     expect(rec.primary!.player.position).toBe('K')
   })
 
   it('does not force D/ST or K while there is still slack', () => {
-    // round 13: 3 picks left, only 2 mandatory holes - a real player may win
-    const ctx = ctxWithMyRoster(153, filled.slice(0, 12))
+    // 3 picks left, only 2 mandatory holes - a real player may win
+    const ctx = ctxWithMyRoster(THIRD_LAST, filled.slice(0, 12))
     const rec = recommend(ctx)
     expect(['DST', 'K']).not.toContain(rec.primary!.player.position)
   })
 
   it('never surfaces D/ST or K before the window opens', () => {
-    for (const p of [8, 20, 45, 93, 141]) {
+    for (const p of MY_PICKS.slice(0, MY_PICKS.length - 3)) {
       const ctx = ctxWithMyRoster(p, filled)
       const rec = recommend(ctx)
       expect(['DST', 'K']).not.toContain(rec.primary!.player.position)
@@ -137,9 +142,10 @@ describe('endgame D/ST and K legality', () => {
 
 describe('tier alert quality', () => {
   const filled: Position[] = ['RB', 'WR']
+  const EARLY = myPickNumbers(settings).slice(0, 6)
 
   it('never uses QB, DST or K as the comparison position', () => {
-    for (const p of [8, 20, 33, 45, 69]) {
+    for (const p of EARLY) {
       const ctx = ctxWithMyRoster(p, filled)
       const roster = analyzeRoster(MY_TEAM, ctx)
       for (const a of getTierAlerts(ctx, roster)) {
@@ -149,7 +155,7 @@ describe('tier alert quality', () => {
   })
 
   it('never tells a 1-QB drafter to prioritise QB in the early rounds', () => {
-    for (const p of [8, 20, 33, 45, 69, 93]) {
+    for (const p of EARLY) {
       const ctx = ctxWithMyRoster(p, filled)
       const roster = analyzeRoster(MY_TEAM, ctx)
       for (const a of getTierAlerts(ctx, roster)) {
@@ -159,7 +165,7 @@ describe('tier alert quality', () => {
   })
 
   it('emits at most three alerts', () => {
-    for (const p of [8, 33, 69, 117]) {
+    for (const p of EARLY) {
       const ctx = ctxWithMyRoster(p, filled)
       const roster = analyzeRoster(MY_TEAM, ctx)
       expect(getTierAlerts(ctx, roster).length).toBeLessThanOrEqual(3)
@@ -167,7 +173,7 @@ describe('tier alert quality', () => {
   })
 
   it('only frames a position as the priority when it is an actual need', () => {
-    const ctx = ctxWithMyRoster(69, filled)
+    const ctx = ctxWithMyRoster(EARLY[3], filled)
     const roster = analyzeRoster(MY_TEAM, ctx)
     for (const a of getTierAlerts(ctx, roster)) {
       if (/should be the priority/.test(a.message)) {
@@ -177,7 +183,7 @@ describe('tier alert quality', () => {
   })
 
   it('writes grammatical counts', () => {
-    for (const p of [8, 33, 69, 117, 153]) {
+    for (const p of EARLY) {
       const ctx = ctxWithMyRoster(p, filled)
       const roster = analyzeRoster(MY_TEAM, ctx)
       for (const a of getTierAlerts(ctx, roster)) {

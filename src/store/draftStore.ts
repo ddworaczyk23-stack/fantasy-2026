@@ -18,6 +18,14 @@ import { recommend } from '../engine'
 import { makeSamplePlayers } from '../data/samplePlayers'
 import { makeSampleDraft, makeSampleTeams } from '../data/sampleLeague'
 import { clearState, loadState, saveState } from '../services/persistence'
+import { getSleeperAdapter, type SleeperLeagueSummary } from '../services/sleeperAdapter'
+import { importLeague, reconcilePicks } from '../services/sleeperSync'
+
+export interface SleeperActionResult {
+  ok: boolean
+  message: string
+  notes?: string[]
+}
 
 export interface DraftStore {
   players: Player[]
@@ -44,6 +52,15 @@ export interface DraftStore {
   setTeams(teams: LeagueTeam[]): void
   renameTeam(id: string, name: string): void
   setSleeper(patch: Partial<SleeperConfig>): void
+
+  /** Verify the Sleeper username and resolve a user_id. */
+  sleeperConnect(): Promise<SleeperActionResult>
+  /** List the connected account's leagues for the configured season. */
+  sleeperListLeagues(): Promise<SleeperActionResult & { leagues?: SleeperLeagueSummary[] }>
+  /** Pull league settings, roster slots, manager names and draft order. */
+  sleeperImportLeague(): Promise<SleeperActionResult>
+  /** Pull the current draft picks and apply them to the board. */
+  sleeperSyncPicks(): Promise<SleeperActionResult>
 
   exportJson(): string
   importJson(json: string): { ok: boolean; error?: string }
@@ -212,6 +229,113 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 
   setSleeper(patch) {
     set({ sleeper: { ...get().sleeper, ...patch } })
+  },
+
+  async sleeperConnect() {
+    const { sleeper } = get()
+    const adapter = getSleeperAdapter(sleeper.adapter)
+    const res = await adapter.verifyUser(sleeper.username)
+    if (!res.ok || !res.user) {
+      set({ sleeper: { ...get().sleeper, status: 'not-connected', lastError: res.message } })
+      return { ok: false, message: res.message }
+    }
+    set({
+      sleeper: {
+        ...get().sleeper,
+        userId: res.user.userId,
+        status: get().sleeper.leagueId ? 'ready-for-import' : 'not-connected',
+        lastError: null,
+      },
+    })
+    return { ok: true, message: res.message }
+  },
+
+  async sleeperListLeagues() {
+    const { sleeper } = get()
+    const adapter = getSleeperAdapter(sleeper.adapter)
+    if (!sleeper.userId) return { ok: false, message: 'Connect your username first.' }
+    const res = await adapter.fetchUserLeagues(sleeper.userId, sleeper.season)
+    if (!res.ok) {
+      set({ sleeper: { ...get().sleeper, lastError: res.message } })
+      return { ok: false, message: res.message }
+    }
+    return { ok: true, message: res.message, leagues: res.leagues }
+  },
+
+  async sleeperImportLeague() {
+    const { sleeper, teams } = get()
+    const adapter = getSleeperAdapter(sleeper.adapter)
+    const leagueRes = await adapter.fetchLeague(sleeper.leagueId, sleeper.season)
+    if (!leagueRes.ok || !leagueRes.league) {
+      set({ sleeper: { ...get().sleeper, status: 'not-connected', lastError: leagueRes.message } })
+      return { ok: false, message: leagueRes.message }
+    }
+    const league = leagueRes.league
+
+    // Draft info and manager names are nice-to-have; a failure here must not
+    // block importing the league itself.
+    const draftRes = league.draftId ? await adapter.fetchDraft(league.draftId) : null
+    const usersRes = await adapter.fetchLeagueUsers(sleeper.leagueId)
+
+    const imported = importLeague(
+      league,
+      draftRes?.draft ?? null,
+      sleeper.userId,
+      teams,
+      usersRes.users ?? {},
+    )
+
+    get().setSettings(imported.settings)
+    get().setTeams(imported.teams)
+    set({
+      sleeper: {
+        ...get().sleeper,
+        draftId: league.draftId ?? '',
+        status: league.draftId ? 'sync-available' : 'ready-for-import',
+        lastError: null,
+      },
+    })
+    return {
+      ok: true,
+      message: `Imported "${league.name}".`,
+      notes: imported.notes,
+    }
+  },
+
+  async sleeperSyncPicks() {
+    const { sleeper, players, teams, settings } = get()
+    const adapter = getSleeperAdapter(sleeper.adapter)
+    if (!sleeper.draftId) return { ok: false, message: 'Import the league first to find its draft.' }
+
+    const res = await adapter.fetchDraftPicks(sleeper.draftId)
+    if (!res.ok || !res.picks) {
+      set({ sleeper: { ...get().sleeper, lastError: res.message } })
+      return { ok: false, message: res.message }
+    }
+
+    const result = reconcilePicks(res.picks, players, teams, settings)
+    set({
+      picks: result.picks,
+      sleeper: {
+        ...get().sleeper,
+        lastSyncAt: Date.now(),
+        lastError: null,
+        unmatched: result.unmatched,
+      },
+    })
+
+    const notes: string[] = []
+    if (result.unmatched.length > 0) {
+      notes.push(
+        `${result.unmatched.length} Sleeper pick(s) had no match on your board. ` +
+          'They are listed below - draft those players manually so the board stays right.',
+      )
+    }
+    return {
+      ok: true,
+      message: `Synced ${result.matched} of ${result.total} pick(s).`,
+      notes,
+    }
   },
 
   exportJson() {

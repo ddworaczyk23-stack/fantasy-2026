@@ -7,24 +7,9 @@ import { POSITIONS } from '../types'
 // fields, embedded commas, embedded "" escaped quotes, and CRLF/LF endings.
 // ============================================================================
 
-export const CSV_HEADERS: string[] = [
-  'name',
-  'team',
-  'position',
-  'bye',
-  'overallRank',
-  'posRank',
-  'tier',
-  'adp',
-  'projPoints',
-  'upside',
-  'floor',
-  'risk',
-  'notes',
-  'tags',
-  'rationale',
-  'customRank',
-]
+export { CSV_HEADERS } from './csvHeaders'
+import { CSV_HEADERS } from './csvHeaders'
+import { fantasyProsToNative, isFantasyProsHeader } from './fantasyPros'
 
 const KNOWN_TAGS: PlayerTag[] = [
   'target',
@@ -234,9 +219,17 @@ export function parsePlayersCsv(text: string): CsvImportResult {
   const errors: string[] = []
   const warnings: string[] = []
 
-  const rows = parseCsvRows(text)
+  let rows = parseCsvRows(text)
   if (rows.length === 0) {
     return { players: [], rowCount: 0, errors: ['CSV is empty.'], warnings }
+  }
+
+  // A FantasyPros export is translated into the native columns first, then
+  // validated by exactly the same code as a hand-made CSV.
+  if (isFantasyProsHeader(rows[0])) {
+    const converted = fantasyProsToNative(rows)
+    rows = converted.rows
+    warnings.push(...converted.warnings)
   }
 
   const headerRow = rows[0].map((h) => h.trim().toLowerCase())
