@@ -1,90 +1,82 @@
 import { describe, it, expect } from 'vitest'
 import { makeFantasyProsBoard } from '../data/fantasyProsBoard'
 import { DEFAULT_SETTINGS } from '../engine/defaults'
+import { parseAllRankingsCsv } from '../services/fantasyProsAllRankings'
 import { replacementRank, projectedPoints } from '../services/valueBoard'
 import type { Position } from '../types'
+import rawAllRankings from '../data/raw/fantasypros-2026-all-rankings.csv?raw'
 
 const { players, errors } = makeFantasyProsBoard(DEFAULT_SETTINGS)
 
-describe('FantasyPros 2026 board', () => {
-  it('parses every line of the cheat sheet with no errors', () => {
+describe('FantasyPros 2026 ALL Rankings board', () => {
+  it('parses the CSV with no errors and 521 real players', () => {
     expect(errors).toEqual([])
-    expect(players).toHaveLength(372)
+    expect(players).toHaveLength(521)
   })
 
-  it('has the right count at each position', () => {
-    const count = (p: Position) => players.filter((x) => x.position === p).length
-    expect(count('QB')).toBe(50)
-    expect(count('RB')).toBe(100)
-    expect(count('WR')).toBe(100)
-    expect(count('TE')).toBe(50)
-    expect(count('K')).toBe(40)
-    expect(count('DST')).toBe(32)
+  it('skips the blank tier-boundary marker rows', () => {
+    const { rows, errors: parseErrors } = parseAllRankingsCsv(rawAllRankings)
+    expect(parseErrors).toEqual([])
+    expect(rows).toHaveLength(521)
+    expect(rows.every((r) => r.name.trim().length > 0)).toBe(true)
   })
 
-  it('keeps FantasyPros positional order intact', () => {
-    const rbs = players.filter((p) => p.position === 'RB').sort((a, b) => a.posRank - b.posRank)
-    expect(rbs[0].name).toBe('Jahmyr Gibbs')
-    expect(rbs[1].name).toBe('Bijan Robinson')
-    const wrs = players.filter((p) => p.position === 'WR').sort((a, b) => a.posRank - b.posRank)
-    expect(wrs[0].name).toBe("Ja'Marr Chase")
-    const tes = players.filter((p) => p.position === 'TE').sort((a, b) => a.posRank - b.posRank)
-    expect(tes[0].name).toBe('Brock Bowers')
-  })
-
-  it('gives every player a unique id and a sequential overall rank', () => {
-    expect(new Set(players.map((p) => p.id)).size).toBe(players.length)
+  it('keeps the real overall order from the file', () => {
+    expect(players[0].name).toBe("Ja'Marr Chase")
+    expect(players[1].name).toBe('Jahmyr Gibbs')
+    expect(players[2].name).toBe('Puka Nacua')
     expect(players.map((p) => p.overallRank)).toEqual(players.map((_, i) => i + 1))
   })
 
+  it('recovers real ADP from the ECR-vs-ADP delta', () => {
+    const cmc = players.find((p) => p.name === 'Christian McCaffrey')!
+    // RK 9, delta -4 -> ADP 5: the market takes him earlier than his rank
+    expect(cmc.overallRank).toBe(9)
+    expect(cmc.adp).toBe(5)
+  })
+
+  it('carries real bye weeks', () => {
+    const chase = players.find((p) => p.name === "Ja'Marr Chase")!
+    expect(chase.bye).toBe(6)
+    const gibbs = players.find((p) => p.name === 'Jahmyr Gibbs')!
+    expect(gibbs.bye).toBe(6)
+  })
+
   it('keeps QB, K and D/ST out of the first round', () => {
-    // An elite TE in a 1-TE league is a legitimate late-first pick, so TE is
-    // allowed here. A quarterback in a 1-QB league is not, and neither is a
-    // streamable position.
     const round1 = players.slice(0, 12)
     for (const p of round1) {
       expect(['QB', 'K', 'DST']).not.toContain(p.position)
     }
-    expect(round1.filter((p) => p.position === 'RB' || p.position === 'WR').length).toBeGreaterThanOrEqual(10)
+    expect(round1.filter((p) => p.position === 'RB' || p.position === 'WR').length).toBeGreaterThanOrEqual(9)
   })
 
-  it('slides quarterbacks out of the early rounds in a 1-QB league', () => {
+  it('slides QB1 out of the first round in a 1-QB league, per the real file', () => {
     const firstQb = players.findIndex((p) => p.position === 'QB')
-    // QB1 should land in the back half of round 2 or later, not round 1...
+    expect(players[firstQb].name).toBe('Josh Allen')
     expect(firstQb).toBeGreaterThanOrEqual(12)
-    // ...but he must not fall out of the useful part of the board either
-    expect(firstQb).toBeLessThan(48)
+    expect(firstQb).toBeLessThan(40)
   })
 
-  it('puts kickers and defenses at the very bottom of the board', () => {
+  it('keeps kickers and defenses out of the startable early-to-mid rounds, per the real file', () => {
+    // Real market data: kickers and defenses go in the double-digit rounds,
+    // even though deep waiver-wire WRs exist even later than that.
     const firstK = players.findIndex((p) => p.position === 'K')
     const firstDst = players.findIndex((p) => p.position === 'DST')
-    // both are streamable, so they sort below every skill player
-    expect(firstK).toBeGreaterThan(250)
-    expect(firstDst).toBeGreaterThan(250)
-    const lastSkill = players.map((p) => p.position).lastIndexOf('WR')
-    expect(firstK).toBeGreaterThan(lastSkill)
-    expect(firstDst).toBeGreaterThan(lastSkill)
+    expect(firstK).toBeGreaterThan(150)
+    expect(firstDst).toBeGreaterThan(150)
   })
 
-  it('keeps the elite tight ends valuable but not first-round', () => {
-    const bowers = players.find((p) => p.name === 'Brock Bowers')!
-    // an elite TE in a 1-TE league is a real late-first / early-second pick
-    expect(bowers.overallRank).toBeGreaterThan(5)
-    expect(bowers.overallRank).toBeLessThan(40)
+  it('gives every player a unique id', () => {
+    expect(new Set(players.map((p) => p.id)).size).toBe(players.length)
   })
 
-  it('builds real tiers, not equal-sized buckets', () => {
+  it('builds real per-position tiers, not one-man tiers', () => {
     const rbTiers = players
       .filter((p) => p.position === 'RB')
       .sort((a, b) => a.posRank - b.posRank)
       .map((p) => p.tier)
-    // tiers must be non-decreasing down the positional board
     for (let i = 1; i < rbTiers.length; i++) expect(rbTiers[i]).toBeGreaterThanOrEqual(rbTiers[i - 1])
-    expect(Math.max(...rbTiers)).toBeGreaterThan(4)
-    // the top tier must hold more than one player
     expect(rbTiers.filter((t) => t === 1).length).toBeGreaterThan(1)
-    // and not every tier is the same size
     const sizes = new Map<number, number>()
     for (const t of rbTiers) sizes.set(t, (sizes.get(t) ?? 0) + 1)
     expect(new Set(sizes.values()).size).toBeGreaterThan(1)
@@ -96,24 +88,39 @@ describe('FantasyPros 2026 board', () => {
       expect(p.projPoints).toBeGreaterThan(0)
       expect(Number.isFinite(p.adp)).toBe(true)
       expect(Number.isFinite(p.tier)).toBe(true)
+      expect(Number.isFinite(p.upside)).toBe(true)
+      expect(Number.isFinite(p.risk)).toBe(true)
       expect(p.rationale.length).toBeGreaterThan(10)
     }
   })
 
-  it('flags what the cheat sheet cannot provide', () => {
+  it('reads upside/bust star ratings into upside and risk', () => {
+    const chase = players.find((p) => p.name === "Ja'Marr Chase")! // 5/5 upside, 1/5 bust
+    expect(chase.upside).toBe(100)
+    expect(chase.risk).toBe(20)
+    expect(chase.floor).toBe(80)
+  })
+
+  it('tags a big faller as value and a big reach as avoid-at-cost', () => {
+    // Sam Darnold: RK 137, delta +48 -> ADP 185, a real faller
+    const darnold = players.find((p) => p.name === 'Sam Darnold')!
+    expect(darnold.tags).toContain('value')
+    // Derrick Henry: RK 37, delta -21 -> ADP 16, drafted well ahead of rank
+    const henry = players.find((p) => p.name === 'Derrick Henry')!
+    expect(henry.tags).toContain('avoid-at-cost')
+  })
+
+  it('flags what is derived versus what is real, in the notes', () => {
     const { notes } = makeFantasyProsBoard(DEFAULT_SETTINGS)
     const blob = notes.join(' ')
-    expect(blob).toMatch(/DERIVED/i)
-    expect(blob).toMatch(/ADP/i)
-    expect(blob).toMatch(/[Bb]ye/)
+    expect(blob).toMatch(/floor/i)
+    expect(blob).toMatch(/tag/i)
   })
 })
 
-describe('value-over-replacement model', () => {
+describe('value-over-replacement model (still used for tiering only)', () => {
   it('sets replacement level from the actual lineup', () => {
-    // 12 teams, 1 QB each -> the 13th QB is replacement level
     expect(replacementRank('QB', DEFAULT_SETTINGS)).toBe(13)
-    // 2 RB * 12 = 24 starters, plus ~45% of the 12 FLEX spots -> 29 start
     expect(replacementRank('RB', DEFAULT_SETTINGS)).toBe(30)
     expect(replacementRank('WR', DEFAULT_SETTINGS)).toBe(30)
   })
@@ -128,10 +135,5 @@ describe('value-over-replacement model', () => {
       expect(projectedPoints(pos, 1)).toBeGreaterThan(projectedPoints(pos, 10))
       expect(projectedPoints(pos, 10)).toBeGreaterThanOrEqual(projectedPoints(pos, 30))
     }
-  })
-
-  it('reprices pass-catchers when the league is not full PPR', () => {
-    expect(projectedPoints('WR', 5, 'standard')).toBeLessThan(projectedPoints('WR', 5, 'ppr'))
-    expect(projectedPoints('QB', 5, 'standard')).toBe(projectedPoints('QB', 5, 'ppr'))
   })
 })

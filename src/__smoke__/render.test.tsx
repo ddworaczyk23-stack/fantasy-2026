@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest'
+
+// 521 real players means several sequential draft-and-rerender cycles in one
+// test genuinely take a few seconds under jsdom + React dev mode. The engine
+// itself is fast (~70ms/recommendation, see engine/__tests__) - this is test
+// harness overhead, not an app problem.
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react-dom/test-utils'
@@ -51,7 +56,7 @@ describe('app shell', () => {
     expect(text).toMatch(/Jahmyr Gibbs|Ja'Marr Chase|Bijan Robinson/)
   })
 
-  it('shows a not-on-the-clock state at pick 1 and a real recommendation at my pick', async () => {
+  it('shows a not-on-the-clock state at pick 1 and a real recommendation at my pick', { timeout: 20000 }, async () => {
     const { host } = await mount()
 
     // pick 1 is not mine (my first pick is 8), so the card must say so clearly
@@ -74,7 +79,7 @@ describe('app shell', () => {
     expect(text).not.toMatch(/undefined|NaN/)
   })
 
-  it('renders every tab with real content, not an empty state', async () => {
+  it('renders every tab with real content, not an empty state', { timeout: 15000 }, async () => {
     const { host } = await mount()
 
     const checks: { tab: RegExp; must: RegExp[] }[] = [

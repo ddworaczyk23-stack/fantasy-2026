@@ -1,30 +1,38 @@
-import rawCheatSheet from './raw/fantasypros-2026-cheatsheet.txt?raw'
+import rawAllRankings from './raw/fantasypros-2026-all-rankings.csv?raw'
 import type { LeagueSettings, Player } from '../types'
 import { DEFAULT_SETTINGS } from '../engine/defaults'
-import { buildBoardFromPositional, parsePositionalCheatSheet } from '../services/valueBoard'
+import { buildPlayersFromAllRankings, parseAllRankingsCsv } from '../services/fantasyProsAllRankings'
 
 /**
- * The real board: FantasyPros' 2026 PPR positional cheat sheet.
+ * The real board: FantasyPros' 2026 PPR "ALL Rankings" export.
  *
- * The raw text file is the single source of truth and is imported verbatim, so
- * updating rankings means editing one plain-text file - no code changes and no
- * codegen step.
+ * The raw CSV is the single source of truth and is imported verbatim, so
+ * updating rankings means dropping in a fresh export - no code changes.
  *
- * The sheet gives positional ranks only. Overall rank and tiers are derived
- * from value over replacement for the configured lineup; see `valueBoard.ts`.
+ * Unlike a positional-only cheat sheet, this file carries a genuine overall
+ * rank, overall tier, bye week and an ADP recoverable from its "ECR vs. ADP"
+ * column - so almost nothing here is estimated. Only per-position tiers are
+ * derived, because the file's tiers span every position at once. See
+ * `src/services/fantasyProsAllRankings.ts`.
  */
 
-export const FP_SOURCE_LABEL = 'FantasyPros 2026 PPR · positional cheat sheet · 08/26/2026'
+export const FP_SOURCE_LABEL = 'FantasyPros 2026 PPR · Draft ALL Rankings export'
 
-export const FP_DERIVED_LABEL = 'Overall rank + tiers derived from positional rank (VOR)'
+export const FP_DERIVED_LABEL = 'Overall rank, ADP and bye are from the file. Tiers are re-cut per position.'
 
 export function makeFantasyProsBoard(settings: LeagueSettings = DEFAULT_SETTINGS): {
   players: Player[]
   notes: string[]
   errors: string[]
 } {
-  const { entries, errors } = parsePositionalCheatSheet(rawCheatSheet)
-  const { players, notes } = buildBoardFromPositional(entries, settings)
+  const { rows, errors } = parseAllRankingsCsv(rawAllRankings)
+  const players = buildPlayersFromAllRankings(rows, settings)
+  const notes = [
+    'Upside and risk come from this file’s Upside/Bust star ratings. Floor is estimated as the ' +
+      'inverse of Bust, since the sheet has no floor rating of its own.',
+    'Tags (value / avoid-at-cost / sleeper / injury-concern) are inferred from the ADP gap and the ' +
+      'star ratings - edit them in Rankings if you disagree.',
+  ]
   return { players, notes, errors }
 }
 

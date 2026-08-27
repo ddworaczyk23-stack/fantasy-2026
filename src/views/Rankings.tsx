@@ -92,15 +92,17 @@ export default function Rankings() {
               <p className="text-sm">{FP_SOURCE_LABEL}</p>
               <p className="text-dim text-sm">{FP_DERIVED_LABEL}</p>
               <ul className="plain-list text-dim text-sm">
+                <li>• Overall rank, ADP and bye weeks are real, straight from the file.</li>
+                <li>• Upside and risk come from this file's Upside/Bust star ratings.</li>
                 <li>
-                  • This sheet has no ADP, so &quot;value vs ADP&quot; reads neutral. Import a file with
-                  an ADP column to switch that signal on.
+                  • Floor is estimated as the inverse of Bust, since the sheet has no floor rating of
+                  its own.
                 </li>
-                <li>• No bye weeks on this sheet, so bye-conflict warnings stay off.</li>
-                <li>• Upside, floor and risk are neutral. Tag players below to steer the engine.</li>
+                <li>• Tags (value / avoid-at-cost / sleeper) are inferred from the ADP gap and ratings.</li>
               </ul>
             </>
           )}
+
           {boardSource === 'imported' && (
             <p className="text-dim text-sm">
               These rankings came from a file you imported. Reload a bundled board below if you want

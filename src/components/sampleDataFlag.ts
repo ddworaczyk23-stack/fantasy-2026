@@ -6,8 +6,8 @@ import { useSyncExternalStore } from 'react'
 // This is NOT part of the store contract (docs/CONTRACT.md deliberately does
 // not expose it), so it lives here as a tiny external store the UI layer owns.
 //
-//   'fantasypros' - the bundled FantasyPros 2026 PPR positional cheat sheet.
-//                   Real rankings; overall order and tiers are derived.
+//   'fantasypros' - the bundled FantasyPros 2026 PPR ALL Rankings export.
+//                   Real overall rank, tier, ADP and bye weeks.
 //   'imported'    - the user replaced the board via CSV or a state import.
 //   'sample'      - the invented demo board, only loaded on request.
 // ============================================================================
@@ -48,8 +48,8 @@ export function describeBoardSource(s: BoardSource): BoardBadge {
       return {
         text: 'FANTASYPROS 2026 PPR',
         title:
-          'FantasyPros positional cheat sheet, 08/26/2026. Overall rank and tiers are derived ' +
-          'from positional rank using value over replacement. No ADP or bye weeks on this sheet.',
+          'FantasyPros 2026 PPR draft rankings, 08/26/2026. Overall rank, ADP and bye weeks are ' +
+          'from the file; only per-position tiers are re-cut here.',
         tone: 'good',
       }
     case 'imported':

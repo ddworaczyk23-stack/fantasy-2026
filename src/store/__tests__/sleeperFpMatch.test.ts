@@ -36,18 +36,21 @@ describe('initialKey', () => {
 })
 
 describe('Sleeper picks against the real FantasyPros board', () => {
-  // Sleeper always sends full names; this board is abbreviated in places.
+  // FantasyPros' full "ALL Rankings" export uses full names, same as Sleeper -
+  // so these should all match exactly. The abbreviated-name bridging
+  // (initialKey) is still exercised separately below with a short-name form,
+  // since a league using a different rankings source may still need it.
   const cases: { sleeper: string; position: string; team: string; expected: string }[] = [
     { sleeper: "Ja'Marr Chase", position: 'WR', team: 'CIN', expected: "Ja'Marr Chase" },
     { sleeper: 'Jahmyr Gibbs', position: 'RB', team: 'DET', expected: 'Jahmyr Gibbs' },
-    { sleeper: 'Christian McCaffrey', position: 'RB', team: 'SF', expected: 'C. McCaffrey' },
-    { sleeper: 'Jonathan Taylor', position: 'RB', team: 'IND', expected: 'J. Taylor' },
-    { sleeper: 'Patrick Mahomes', position: 'QB', team: 'KC', expected: 'P. Mahomes II' },
-    { sleeper: 'Amon-Ra St. Brown', position: 'WR', team: 'DET', expected: 'A. St. Brown' },
-    { sleeper: 'Jaxon Smith-Njigba', position: 'WR', team: 'SEA', expected: 'J. Smith-Njigba' },
-    { sleeper: 'Justin Jefferson', position: 'WR', team: 'MIN', expected: 'J. Jefferson' },
-    { sleeper: 'Matthew Stafford', position: 'QB', team: 'LAR', expected: 'M. Stafford' },
-    { sleeper: 'Kenneth Walker', position: 'RB', team: 'KC', expected: 'K. Walker III' },
+    { sleeper: 'Christian McCaffrey', position: 'RB', team: 'SF', expected: 'Christian McCaffrey' },
+    { sleeper: 'Jonathan Taylor', position: 'RB', team: 'IND', expected: 'Jonathan Taylor' },
+    { sleeper: 'Patrick Mahomes II', position: 'QB', team: 'KC', expected: 'Patrick Mahomes II' },
+    { sleeper: 'Amon-Ra St. Brown', position: 'WR', team: 'DET', expected: 'Amon-Ra St. Brown' },
+    { sleeper: 'Jaxon Smith-Njigba', position: 'WR', team: 'SEA', expected: 'Jaxon Smith-Njigba' },
+    { sleeper: 'Justin Jefferson', position: 'WR', team: 'MIN', expected: 'Justin Jefferson' },
+    { sleeper: 'Matthew Stafford', position: 'QB', team: 'LAR', expected: 'Matthew Stafford' },
+    { sleeper: 'Kenneth Walker III', position: 'RB', team: 'KC', expected: 'Kenneth Walker III' },
     { sleeper: 'Brock Bowers', position: 'TE', team: 'LV', expected: 'Brock Bowers' },
     { sleeper: 'Brandon Aubrey', position: 'K', team: 'DAL', expected: 'Brandon Aubrey' },
   ]
@@ -65,14 +68,21 @@ describe('Sleeper picks against the real FantasyPros board', () => {
     const r = matchPlayer(sPick(1, 'Houston Texans', 'DST', 'HOU'), BOARD)
     expect(r.player!.name).toBe('Houston Texans')
     const r2 = matchPlayer(sPick(1, 'Los Angeles Rams', 'DST', 'LAR'), BOARD)
-    expect(r2.player!.name).toBe('L. Angeles Rams')
+    expect(r2.player!.name).toBe('Los Angeles Rams')
     expect(r2.how).toBe('team-defense')
   })
 
-  it('refuses to guess when the team does not agree on an abbreviated name', () => {
-    // right surname and initial, wrong team -> no match rather than a wrong one
-    const r = matchPlayer(sPick(1, 'Patrick Mahomes', 'QB', 'BUF'), BOARD)
+  it('refuses to guess an abbreviated name when the team does not agree', () => {
+    // right initial and surname, wrong team -> the initial-team path requires
+    // agreement, so this falls through to no match rather than a wrong one
+    const r = matchPlayer(sPick(1, 'C. McCaffrey', 'RB', 'BUF'), BOARD)
     expect(r.player).toBeNull()
+  })
+
+  it('still bridges an abbreviated first name when one is given, position and team agreeing', () => {
+    const r = matchPlayer(sPick(1, 'C. McCaffrey', 'RB', 'SF'), BOARD)
+    expect(r.player!.name).toBe('Christian McCaffrey')
+    expect(r.how).toBe('initial-team')
   })
 
   it('reconciles a realistic opening round with nothing unmatched', () => {

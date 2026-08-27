@@ -20,7 +20,7 @@ Then open http://localhost:5173
 Other commands:
 
 ```bash
-npm run test        # run all 142 tests once
+npm run test        # run all 145 tests once
 npm run test:watch  # watch mode
 npm run typecheck   # tsc --noEmit
 npm run build       # production build into dist/
@@ -95,48 +95,41 @@ change the weights.
 
 ## The board you are drafting from
 
-The app loads the **FantasyPros 2026 PPR positional cheat sheet (08/26/2026)** by
-default — 372 players: 50 QB, 100 RB, 100 WR, 50 TE, 40 K, 32 D/ST. IDP is
-omitted; this league does not use it.
+The app loads **FantasyPros' 2026 PPR "Draft ALL Rankings" export (08/26/2026)**
+by default — 521 players across every position, real overall rank, real ADP,
+real bye weeks, and real per-position upside/bust ratings.
 
-The raw sheet lives in one plain-text file,
-[`src/data/raw/fantasypros-2026-cheatsheet.txt`](src/data/raw/fantasypros-2026-cheatsheet.txt).
-Editing that file updates the board. No code changes, no build step.
+The raw file lives at
+[`src/data/raw/fantasypros-2026-all-rankings.csv`](src/data/raw/fantasypros-2026-all-rankings.csv).
+Editing it updates the board. No code changes, no build step.
 
-### How the overall board is built
+### What's real and what's derived
 
-A positional cheat sheet gives you `RB1 ... RB100` and `WR1 ... WR100` and
-nothing else. The engine needs one overall order, and simply stacking the
-positions would put every quarterback ahead of every running back.
+Almost everything in this file is real market data, used as-is:
 
-So the app derives it the way draft analysts have since Value Based Drafting:
-turn each positional rank into an estimated point total, subtract what you could
-get free at that position (replacement level for **your** team count and
-lineup), and rank everyone by the surplus.
+- **Overall rank** — the file's own `RK` column. Not re-sorted or re-derived.
+- **ADP** — recovered from the file's `ECR VS. ADP` delta (`ADP = RK + delta`).
+  A player going 21 picks ahead of his rank (Derrick Henry) or 48 behind it
+  (Sam Darnold) shows up correctly in the value-vs-ADP signal.
+- **Bye week** — straight from the file.
+- **Upside / risk** — from the file's Upside and Bust star ratings.
 
-Two useful things fall straight out of that, and both match how this app drafts:
+Only two things are derived, because the sheet doesn't provide them:
 
-- **Quarterbacks slide.** QB2 and QB12 both start for someone in a 1-QB league,
-  so the surplus at QB is small even though the raw points are huge. Josh Allen
-  lands around pick 22, not pick 3.
-- **Kickers and defenses sink to the bottom**, below every skill player, because
-  both are streamable all season.
+- **Per-position tiers.** The file's own `TIERS` column spans every position
+  at once (tier 4 might hold a QB, three RBs, and a WR together), which
+  doesn't map onto this app's per-position tier model. Tiers are re-cut per
+  position on real ADP, using the same value-over-replacement math draft
+  analysts have used since Value Based Drafting — calibrated on the starter
+  range for **your** team count and lineup, so quarterbacks correctly slide
+  (Josh Allen lands around pick 22, not pick 3) and kickers/defenses correctly
+  sink toward the bottom.
+- **Floor.** The sheet has no floor rating, so floor is estimated as the
+  inverse of the Bust rating.
 
-Tiers are cut at the real drop-offs in that surplus, calibrated on the starter
-range so the flat tail of the curve does not swallow the breaks at the top.
-
-### What a cheat sheet cannot give you
-
-The app states these plainly in the Rankings screen rather than papering over them:
-
-| Missing | Effect | Fix |
-| --- | --- | --- |
-| ADP | "Value vs ADP" reads neutral | Import a file with an ADP column |
-| Bye weeks | Bye-conflict warnings stay off | Import byes, or set them in Rankings |
-| Upside / floor / risk | Those score components sit neutral | Tag players target/fade/sleeper in Rankings |
-
-Everything else — tiers, scarcity, roster fit, can-I-wait, the draft-room read —
-works fully off the cheat sheet alone.
+The Rankings screen states plainly which fields are real and which are
+estimated, and lets you tag players target / fade / sleeper if you disagree
+with the inferred tags.
 
 ---
 
@@ -272,7 +265,7 @@ public/rankings-template.csv
 The engine is pure functions with no React, storage or clock dependencies, which
 is why it can be unit tested.
 
-`npm run test` runs 142 tests across five layers:
+`npm run test` runs 145 tests across five layers:
 
 - **Engine** - pick and snake math, tier states and cliff alerts, can-I-wait
   probability, the Draft Score strategy rules, and full recommendations.
