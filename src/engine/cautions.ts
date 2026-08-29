@@ -30,11 +30,19 @@ export function getCautions(ctx: EngineContext, scored: ScoredPlayer[]): Caution
     .sort((a, b) => a.adp - b.adp)
     .slice(0, ADP_WINDOW)
 
-  adpOrder.forEach((player, i) => {
-    const adpIndex = i + 1
-    const scoreRank = scoreRankById.get(player.id) ?? adpIndex
+  adpOrder.forEach((player) => {
+    // The market's number is his real ADP - an overall pick number. Comparing
+    // it to a player's position in the remaining-players list would drift by
+    // one for every pick already made, so both sides must be pick numbers.
+    const marketPick = player.adp
+    if (!Number.isFinite(marketPick) || marketPick <= 0) return
+
     const effRank = effectiveRank(player)
-    const gap = Math.max(scoreRank - adpIndex, effRank - adpIndex)
+    const scoreRank = scoreRankById.get(player.id)
+    // Where my own board would actually reach him: the pick on the clock plus
+    // his place in my ranked list of who is left.
+    const myPick = scoreRank ? ctx.currentPick + scoreRank - 1 : effRank
+    const gap = Math.max(myPick, effRank) - marketPick
     if (gap < GAP_THRESHOLD) return
 
     flagged.add(player.id)
@@ -42,7 +50,7 @@ export function getCautions(ctx: EngineContext, scored: ScoredPlayer[]): Caution
       playerId: player.id,
       playerName: player.name,
       severity: gap >= CRITICAL_GAP ? 'critical' : 'warn',
-      message: `${player.name} is going around ADP pick ${adpIndex.toFixed(0)}, but your board has him closer to rank ${effRank} (tier ${player.tier}) — the market is well ahead of your value here.`,
+      message: `${player.name} is going around ADP pick ${marketPick.toFixed(0)}, but your board has him closer to rank ${effRank} (tier ${player.tier}) — the market is well ahead of your value here.`,
       realisticRange: realisticRange(ctx, player.id),
     })
   })
