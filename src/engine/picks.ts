@@ -25,12 +25,25 @@ export function slotForPick(pickNumber: number, settings: LeagueSettings): numbe
   return reversed ? teams - idx + 1 : idx
 }
 
+/**
+ * Which slot actually OWNS a pick right now.
+ *
+ * `slotForPick` answers the board-order question ("whose turn is this in the
+ * snake"). This answers the ownership question, which differs whenever a draft
+ * pick has been traded. A `pickOwners` entry always wins over snake math.
+ */
+export function ownerSlotForPick(pickNumber: number, settings: LeagueSettings): number {
+  const traded = settings.pickOwners?.[pickNumber]
+  if (typeof traded === 'number' && traded >= 1 && traded <= settings.teams) return traded
+  return slotForPick(pickNumber, settings)
+}
+
 /** All overall pick numbers owned by a slot, across the whole draft. */
 export function picksForSlot(slot: number, settings: LeagueSettings): number[] {
   const total = settings.teams * settings.rounds
   const out: number[] = []
   for (let p = 1; p <= total; p++) {
-    if (slotForPick(p, settings) === slot) out.push(p)
+    if (ownerSlotForPick(p, settings) === slot) out.push(p)
   }
   return out
 }
@@ -90,7 +103,7 @@ export function teamForPick(
   teams: LeagueTeam[],
   settings: LeagueSettings,
 ): LeagueTeam | null {
-  const slot = slotForPick(pickNumber, settings)
+  const slot = ownerSlotForPick(pickNumber, settings)
   return teams.find((t) => t.slot === slot) ?? null
 }
 

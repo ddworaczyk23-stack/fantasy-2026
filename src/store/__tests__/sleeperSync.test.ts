@@ -255,6 +255,7 @@ describe('league mapping', () => {
         teams: 12,
         draftOrder: { me: 8, other: 1 },
         reversalRound: 0,
+      slotToRosterId: null,
       },
       'me',
       TEAMS,
@@ -280,7 +281,7 @@ describe('league mapping', () => {
     }
     const rev = importLeague(
       league,
-      { draftId: 'D1', status: 'pre_draft', type: 'snake', rounds: 15, teams: 12, draftOrder: null, reversalRound: 3 },
+      { draftId: 'D1', status: 'pre_draft', type: 'snake', rounds: 15, teams: 12, draftOrder: null, reversalRound: 3, slotToRosterId: null },
       '',
       TEAMS,
       {},
@@ -289,7 +290,7 @@ describe('league mapping', () => {
 
     const linear = importLeague(
       league,
-      { draftId: 'D1', status: 'pre_draft', type: 'linear', rounds: 15, teams: 12, draftOrder: null, reversalRound: 0 },
+      { draftId: 'D1', status: 'pre_draft', type: 'linear', rounds: 15, teams: 12, draftOrder: null, reversalRound: 0, slotToRosterId: null },
       '',
       TEAMS,
       {},

@@ -1,5 +1,11 @@
+import { slotForPick } from '../engine/picks'
 import type { DraftPick, LeagueSettings, LeagueTeam, Player, RosterSlots } from '../types'
-import type { SleeperDraftInfo, SleeperDraftPick, SleeperLeagueInfo } from './sleeperAdapter'
+import type {
+  SleeperDraftInfo,
+  SleeperDraftPick,
+  SleeperLeagueInfo,
+  SleeperTradedPick,
+} from './sleeperAdapter'
 
 // ============================================================================
 // Pure mapping between Sleeper's world and this app's board.
@@ -212,6 +218,48 @@ export function rosterSlotsFromSleeper(rosterPositions: string[]): RosterSlots {
   return slots
 }
 
+/**
+ * Turn Sleeper's traded-pick records into an "overall pick number -> owning
+ * slot" map.
+ *
+ * Sleeper stores a traded pick as (season, round, original roster, new owner).
+ * The ORIGINAL roster is what fixes the pick's place in the draft order, so we
+ * resolve that roster to its draft slot, ask snake math which overall pick that
+ * slot makes in that round, and record the new owner against it.
+ *
+ * Only picks that actually changed hands get an entry. Trades for another
+ * season, or rounds past the end of this draft, are ignored.
+ */
+export function pickOwnersFromTrades(
+  tradedPicks: SleeperTradedPick[],
+  slotToRosterId: Record<number, string> | null,
+  season: string,
+  settings: Pick<LeagueSettings, 'teams' | 'rounds' | 'snake' | 'thirdRoundReversal'>,
+): Record<number, number> | null {
+  if (!slotToRosterId || tradedPicks.length === 0) return null
+
+  const rosterToSlot = new Map<string, number>()
+  for (const [slot, rosterId] of Object.entries(slotToRosterId)) rosterToSlot.set(rosterId, Number(slot))
+
+  const owners: Record<number, number> = {}
+  for (const t of tradedPicks) {
+    if (season && t.season && t.season !== season) continue
+    if (t.round < 1 || t.round > settings.rounds) continue
+    const originalSlot = rosterToSlot.get(t.originalRosterId)
+    const ownerSlot = rosterToSlot.get(t.ownerRosterId)
+    if (!originalSlot || !ownerSlot || originalSlot === ownerSlot) continue
+
+    const first = (t.round - 1) * settings.teams + 1
+    for (let p = first; p < first + settings.teams; p++) {
+      if (slotForPick(p, settings as LeagueSettings) === originalSlot) {
+        owners[p] = ownerSlot
+        break
+      }
+    }
+  }
+  return Object.keys(owners).length > 0 ? owners : null
+}
+
 export interface ImportedLeague {
   settings: Partial<LeagueSettings>
   teams: LeagueTeam[]
@@ -228,6 +276,7 @@ export function importLeague(
   myUserId: string,
   existingTeams: LeagueTeam[],
   userNames: Record<string, string>,
+  tradedPicks: SleeperTradedPick[] = [],
 ): ImportedLeague {
   const notes: string[] = []
   const teamCount = draft?.teams ?? league.teams ?? 12
@@ -268,16 +317,34 @@ export function importLeague(
     notes.push(`Third-round reversal detected (reversal round ${draft.reversalRound}).`)
   }
 
+  const snake = draft ? draft.type === 'snake' : true
+  const thirdRoundReversal = Boolean(draft?.reversalRound)
+  const pickOwners = pickOwnersFromTrades(
+    tradedPicks,
+    draft?.slotToRosterId ?? null,
+    league.season,
+    { teams: teamCount, rounds, snake, thirdRoundReversal },
+  )
+  if (pickOwners) {
+    notes.push(`${Object.keys(pickOwners).length} traded draft pick(s) applied to the board.`)
+  } else if (tradedPicks.length > 0 && !draft?.slotToRosterId) {
+    notes.push(
+      'Sleeper reports traded draft picks, but the draft has no slot-to-roster map yet, ' +
+        'so pick ownership still uses plain snake order.',
+    )
+  }
+
   const settings: Partial<LeagueSettings> = {
     teams: teamCount,
     rounds,
     scoring: league.scoring,
     superflex,
     roster,
-    snake: draft ? draft.type === 'snake' : true,
-    thirdRoundReversal: Boolean(draft?.reversalRound),
+    snake,
+    thirdRoundReversal,
     // Sleeper knows the true order, so a hand-typed override no longer applies.
     myPickOverrides: null,
+    pickOwners,
   }
   if (mySlot > 0) settings.mySlot = mySlot
 

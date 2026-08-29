@@ -57,6 +57,7 @@ function makeCtx(opts: {
       mySlot: 1,
       roster: DEFAULT_ROSTER,
       myPickOverrides: opts.myPickOverrides ?? null,
+      pickOwners: null,
       kdstLastRounds: 2,
       allowEarlyKDst: false,
     },

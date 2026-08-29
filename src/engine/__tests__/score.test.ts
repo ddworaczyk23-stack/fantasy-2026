@@ -55,6 +55,7 @@ function makeCtx(players: Player[], currentPick: number, weights: Weights = DEFA
       mySlot: 1,
       roster: DEFAULT_ROSTER,
       myPickOverrides: null,
+      pickOwners: null,
       kdstLastRounds: 2,
       allowEarlyKDst: false,
     },

@@ -26,6 +26,7 @@ function makeSettings(overrides: Partial<LeagueSettings> = {}): LeagueSettings {
     mySlot: 8,
     roster: DEFAULT_ROSTER,
     myPickOverrides: null,
+    pickOwners: null,
     kdstLastRounds: 2,
     allowEarlyKDst: false,
     ...overrides,

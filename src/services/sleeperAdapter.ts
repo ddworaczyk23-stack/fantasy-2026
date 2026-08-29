@@ -72,6 +72,20 @@ export interface SleeperDraftInfo {
   draftOrder: Record<string, number> | null
   /** 0 when the league does not use a third-round reversal */
   reversalRound: number
+  /** 1-based draft slot -> sleeper roster_id, needed to read traded picks */
+  slotToRosterId: Record<number, string> | null
+}
+
+/**
+ * One traded draft pick, as Sleeper reports it.
+ * `originalRosterId` is the team the pick STARTED with (that is what fixes its
+ * place in the draft order); `ownerRosterId` is who makes the selection now.
+ */
+export interface SleeperTradedPick {
+  season: string
+  round: number
+  originalRosterId: string
+  ownerRosterId: string
 }
 
 export interface SleeperDraftPick {
@@ -104,11 +118,27 @@ export interface SleeperAdapter {
   ): Promise<{ ok: boolean; users?: Record<string, string>; message: string }>
   fetchDraft(draftId: string): Promise<{ ok: boolean; draft?: SleeperDraftInfo; message: string }>
   fetchDraftPicks(draftId: string): Promise<{ ok: boolean; picks?: SleeperDraftPick[]; message: string }>
+  fetchTradedPicks(
+    leagueId: string,
+  ): Promise<{ ok: boolean; tradedPicks?: SleeperTradedPick[]; message: string }>
 }
 
 // ---------------------------------------------------------------------------
 // Shared mapping helpers
 // ---------------------------------------------------------------------------
+
+/** Sleeper sends slot_to_roster_id keyed by string; roster ids come back mixed. */
+export function normalizeSlotToRoster(
+  raw: Record<string, number | string> | null | undefined,
+): Record<number, string> | null {
+  if (!raw) return null
+  const out: Record<number, string> = {}
+  for (const [slot, rosterId] of Object.entries(raw)) {
+    const s = Number(slot)
+    if (Number.isFinite(s) && s >= 1 && rosterId != null) out[s] = String(rosterId)
+  }
+  return Object.keys(out).length > 0 ? out : null
+}
 
 /** Sleeper writes defenses as DEF; this app calls them DST. */
 export function normalizeSleeperPosition(pos: string): string {
@@ -262,6 +292,7 @@ export const liveSleeperAdapter: SleeperAdapter = {
         status?: string
         type?: string
         draft_order?: Record<string, number> | null
+        slot_to_roster_id?: Record<string, number | string> | null
         settings?: { rounds?: number; teams?: number; reversal_round?: number }
       } | null>(`${API}/draft/${encodeURIComponent(id)}`)
       if (!raw || !raw.draft_id) return { ok: false, message: `No Sleeper draft with ID "${id}".` }
@@ -275,6 +306,7 @@ export const liveSleeperAdapter: SleeperAdapter = {
           teams: raw.settings?.teams ?? 12,
           draftOrder: raw.draft_order ?? null,
           reversalRound: raw.settings?.reversal_round ?? 0,
+          slotToRosterId: normalizeSlotToRoster(raw.slot_to_roster_id),
         },
         message: `Draft status: ${raw.status ?? 'unknown'}.`,
       }
@@ -318,6 +350,32 @@ export const liveSleeperAdapter: SleeperAdapter = {
       return { ok: true, picks, message: `${picks.length} pick(s) made so far.` }
     } catch (e) {
       return { ok: false, message: errMessage(e, 'Loading draft picks') }
+    }
+  },
+
+  async fetchTradedPicks(leagueId) {
+    const id = leagueId.trim()
+    if (!id) return { ok: false, message: 'Enter your Sleeper league ID.' }
+    try {
+      const raw = await getJson<
+        {
+          season?: string
+          round?: number
+          roster_id?: number | string | null
+          owner_id?: number | string | null
+        }[] | null
+      >(`${API}/league/${encodeURIComponent(id)}/traded_picks`)
+      const tradedPicks: SleeperTradedPick[] = (raw ?? [])
+        .filter((t) => typeof t.round === 'number' && t.roster_id != null && t.owner_id != null)
+        .map((t) => ({
+          season: String(t.season ?? ''),
+          round: t.round as number,
+          originalRosterId: String(t.roster_id),
+          ownerRosterId: String(t.owner_id),
+        }))
+      return { ok: true, tradedPicks, message: `${tradedPicks.length} traded pick(s) on record.` }
+    } catch (e) {
+      return { ok: false, message: errMessage(e, 'Loading traded picks') }
     }
   },
 }
@@ -392,6 +450,7 @@ export const mockSleeperAdapter: SleeperAdapter = {
         teams: 12,
         draftOrder: null,
         reversalRound: 0,
+        slotToRosterId: null,
       },
       message: 'MOCK: canned draft info, not a real Sleeper draft.',
     }
@@ -406,6 +465,11 @@ export const mockSleeperAdapter: SleeperAdapter = {
       { pickNumber: 3, round: 1, slot: 3, rosterId: '3', pickedBy: 'u3', playerName: 'CeeDee Lamb', position: 'WR', team: 'DAL' },
     ]
     return { ok: true, picks, message: 'MOCK: canned draft picks, not a real Sleeper draft.' }
+  },
+
+  async fetchTradedPicks(_leagueId) {
+    await delay(MOCK_DELAY_MS)
+    return { ok: true, tradedPicks: [], message: 'MOCK: no traded picks in the canned league.' }
   },
 }
 

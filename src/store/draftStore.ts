@@ -277,6 +277,7 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
     // block importing the league itself.
     const draftRes = league.draftId ? await adapter.fetchDraft(league.draftId) : null
     const usersRes = await adapter.fetchLeagueUsers(sleeper.leagueId)
+    const tradedRes = await adapter.fetchTradedPicks(sleeper.leagueId)
 
     const imported = importLeague(
       league,
@@ -284,6 +285,7 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
       sleeper.userId,
       teams,
       usersRes.users ?? {},
+      tradedRes.tradedPicks ?? [],
     )
 
     get().setSettings(imported.settings)

@@ -112,6 +112,12 @@ export interface LeagueSettings {
    * 3.09 / 9th-thereafter type the truth instead of fighting snake math.
    */
   myPickOverrides: number[] | null
+  /**
+   * Overall pick number -> the draft slot that OWNS it, after draft-pick
+   * trades. Only picks that changed hands need an entry; anything missing
+   * falls back to snake math. Synced from Sleeper's traded_picks feed.
+   */
+  pickOwners: Record<number, number> | null
   /** do not recommend DST/K until this many rounds remain. default 2 */
   kdstLastRounds: number
   /** when true, engine may recommend DST/K at any time */

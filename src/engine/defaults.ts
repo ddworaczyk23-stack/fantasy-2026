@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: LeagueSettings = {
   // No single slot produces that, so the pick numbers ship as an explicit
   // override. Clear it in Settings to fall back to plain snake math.
   myPickOverrides: [8, 17, 33, 40, 57, 64, 81, 88, 105, 112, 129, 136, 153, 160, 177],
+  pickOwners: null,
   kdstLastRounds: 2,
   allowEarlyKDst: false,
 }
