@@ -1,6 +1,12 @@
 import type { LeagueTeam, ScoredPlayer } from '../types'
 import PositionPill from './PositionPill'
 
+function valueClass(value: number): string {
+  if (value >= 5) return 'text-good font-bold'
+  if (value <= -5) return 'text-critical font-bold'
+  return 'text-muted'
+}
+
 /**
  * One row in the Available Players table. Kept as a component so DraftRoom
  * stays under the line budget and so the row markup/behaviour is defined once.
@@ -35,7 +41,7 @@ export default function PlayerRow({
       <td>{p.bye || '—'}</td>
       <td>T{p.tier}</td>
       <td>{p.adp.toFixed(1)}</td>
-      <td className={scored.valueVsAdp > 0 ? 'text-dim' : 'text-muted'}>
+      <td className={valueClass(scored.valueVsAdp)}>
         {scored.valueVsAdp > 0 ? '+' : ''}
         {scored.valueVsAdp.toFixed(1)}
       </td>

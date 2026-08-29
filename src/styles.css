@@ -604,6 +604,8 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; accent-
 .gap-sm { gap: 4px; }
 .text-muted { color: var(--muted); }
 .text-dim { color: var(--text-dim); }
+.text-good { color: var(--good); }
+.text-critical { color: var(--critical); }
 .text-sm { font-size: 0.82rem; }
 .text-xs { font-size: 0.72rem; }
 .font-bold { font-weight: 800; }
