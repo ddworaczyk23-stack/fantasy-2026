@@ -10,11 +10,13 @@ const SPAN_LABEL: Record<PanelSpan, string> = { 1: 'Narrow', 2: 'Medium', 3: 'Wi
 export default function DashboardTile({
   id,
   span,
+  editMode,
   onCycleSpan,
   children,
 }: {
   id: PanelId
   span: PanelSpan
+  editMode: boolean
   onCycleSpan: (id: PanelId) => void
   children: ReactNode
 }) {
@@ -49,25 +51,27 @@ export default function DashboardTile({
       }}
     >
       <div ref={contentRef}>
-        <div className="dashboard-tile__toolbar">
-          <button
-            type="button"
-            className="icon-btn btn-sm dashboard-tile__handle"
-            aria-label="Drag to reorder"
-            {...attributes}
-            {...listeners}
-          >
-            ⠿
-          </button>
-          <button
-            type="button"
-            className="icon-btn btn-sm"
-            onClick={() => onCycleSpan(id)}
-            aria-label={`Panel width: ${SPAN_LABEL[span]}. Click to change.`}
-          >
-            {SPAN_LABEL[span]}
-          </button>
-        </div>
+        {editMode && (
+          <div className="dashboard-tile__toolbar">
+            <button
+              type="button"
+              className="icon-btn btn-sm dashboard-tile__handle"
+              aria-label="Drag to reorder"
+              {...attributes}
+              {...listeners}
+            >
+              ⠿
+            </button>
+            <button
+              type="button"
+              className="icon-btn btn-sm"
+              onClick={() => onCycleSpan(id)}
+              aria-label={`Panel width: ${SPAN_LABEL[span]}. Click to change.`}
+            >
+              {SPAN_LABEL[span]}
+            </button>
+          </div>
+        )}
         {children}
       </div>
     </div>

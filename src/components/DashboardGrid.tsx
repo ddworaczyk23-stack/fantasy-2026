@@ -48,18 +48,31 @@ export default function DashboardGrid({ panels }: { panels: Record<PanelId, Reac
     setLayout(DEFAULT_DASHBOARD_LAYOUT)
   }
 
+  const [editMode, setEditMode] = useState(false)
+
   return (
     <div>
       <div className="dashboard-toolbar">
-        <button type="button" className="btn btn-sm" onClick={handleReset}>
-          Reset layout
+        <button type="button" className="btn btn-sm" onClick={() => setEditMode((v) => !v)} aria-pressed={editMode}>
+          {editMode ? 'Done editing' : 'Edit layout'}
         </button>
+        {editMode && (
+          <button type="button" className="btn btn-sm" onClick={handleReset}>
+            Reset layout
+          </button>
+        )}
       </div>
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={layout.map((e) => e.id)}>
           <div className="draft-room">
             {layout.map((entry) => (
-              <DashboardTile key={entry.id} id={entry.id} span={entry.span} onCycleSpan={handleCycleSpan}>
+              <DashboardTile
+                key={entry.id}
+                id={entry.id}
+                span={entry.span}
+                editMode={editMode}
+                onCycleSpan={handleCycleSpan}
+              >
                 {panels[entry.id]}
               </DashboardTile>
             ))}
