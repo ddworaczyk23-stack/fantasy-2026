@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useDraftStore, useEngineContext, useRecommendation } from '../store/draftStore'
 import { scoreAvailable } from '../engine'
 import { teamForPick } from '../engine/picks'
 import EmptyState from '../components/EmptyState'
 import KeyboardHelpOverlay from '../components/KeyboardHelpOverlay'
+import DashboardGrid from '../components/DashboardGrid'
 import DraftNowCard from '../components/draftroom/DraftNowCard'
 import AlternativesList from '../components/draftroom/AlternativesList'
 import StrategyPanel from '../components/draftroom/StrategyPanel'
@@ -15,6 +17,7 @@ import RoomReadPanel from '../components/draftroom/RoomReadPanel'
 import CautionsPanel from '../components/draftroom/CautionsPanel'
 import DraftHistoryPanel from '../components/draftroom/DraftHistoryPanel'
 import DraftBoardPanel from '../components/draftroom/DraftBoardPanel'
+import type { PanelId } from '../dashboard/layout'
 
 export default function DraftRoom() {
   const players = useDraftStore((s) => s.players)
@@ -108,8 +111,11 @@ export default function DraftRoom() {
     )
   }
 
-  return (
-    <div className="draft-room-page">
+  const panels: Record<PanelId, ReactNode> = {
+    'draft-now': (
+      <DraftNowCard recommendation={recommendation} onDraft={handleDraft} clockTeamName={clockTeam?.name ?? ''} />
+    ),
+    'available-players': (
       <div onKeyDown={handleSearchKeyDown}>
         <AvailablePlayersPanel
           ref={searchRef}
@@ -122,37 +128,29 @@ export default function DraftRoom() {
           onVisibleRowsChange={setVisibleRowIds}
         />
       </div>
+    ),
+    alternatives: <AlternativesList alternatives={recommendation.alternatives} onDraft={handleDraft} />,
+    strategy: (
+      <StrategyPanel strategyExplanation={recommendation.strategyExplanation} primary={recommendation.primary} />
+    ),
+    'can-i-wait': <CanIWaitPanel waitAnalysis={recommendation.waitAnalysis} />,
+    'tier-alerts': <TierAlertPanel alerts={recommendation.tierAlerts} />,
+    'my-roster': <MyRosterPanel roster={recommendation.roster} />,
+    'room-read': <RoomReadPanel roomRead={recommendation.roomRead} />,
+    cautions: <CautionsPanel cautions={recommendation.cautions} />,
+    'draft-history': (
+      <DraftHistoryPanel picks={picks} players={players} teams={teams} settings={settings} onUndo={undoLastPick} />
+    ),
+    'draft-board': <DraftBoardPanel picks={picks} players={players} teams={teams} settings={settings} />,
+  }
 
-      <div className="draft-room">
-        <div className="draft-room__col">
-          <DraftNowCard
-            recommendation={recommendation}
-            onDraft={handleDraft}
-            clockTeamName={clockTeam?.name ?? ''}
-          />
-          <AlternativesList alternatives={recommendation.alternatives} onDraft={handleDraft} />
-          <StrategyPanel strategyExplanation={recommendation.strategyExplanation} primary={recommendation.primary} />
-        </div>
+  return (
+    <div className="draft-room-page">
+      <DashboardGrid panels={panels} />
 
-        <div className="draft-room__col">
-          <CanIWaitPanel waitAnalysis={recommendation.waitAnalysis} />
-          <TierAlertPanel alerts={recommendation.tierAlerts} />
-        </div>
-
-        <div className="draft-room__col">
-          <MyRosterPanel roster={recommendation.roster} />
-          <RoomReadPanel roomRead={recommendation.roomRead} />
-          <CautionsPanel cautions={recommendation.cautions} />
-          <DraftHistoryPanel picks={picks} players={players} teams={teams} settings={settings} onUndo={undoLastPick} />
-          <DraftBoardPanel picks={picks} players={players} teams={teams} settings={settings} />
-        </div>
-
-        {draftComplete && (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <EmptyState title="Draft complete" description="All picks have been made. Review your team on My Team, or export your results from Settings." />
-          </div>
-        )}
-      </div>
+      {draftComplete && (
+        <EmptyState title="Draft complete" description="All picks have been made. Review your team on My Team, or export your results from Settings." />
+      )}
 
       {helpOpen && <KeyboardHelpOverlay onClose={() => setHelpOpen(false)} />}
     </div>
