@@ -294,6 +294,12 @@ a { color: inherit; }
   min-height: 0;
 }
 
+.draft-room-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 /* Draft room 3 -> 2 -> 1 column grid */
 .draft-room {
   display: grid;
@@ -451,7 +457,7 @@ a { color: inherit; }
    Tables
    --------------------------------------------------------------------------- */
 .table-wrap { overflow-x: auto; }
-.data-table { font-size: 0.85rem; }
+.data-table { font-size: 0.85rem; min-width: 760px; width: 100%; }
 .data-table th {
   text-align: left;
   padding: 7px 9px;
@@ -602,6 +608,7 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; accent-
 .flex-col { display: flex; flex-direction: column; gap: 8px; }
 .flex-wrap { flex-wrap: wrap; }
 .gap-sm { gap: 4px; }
+.ml-sm { margin-left: 6px; }
 .text-muted { color: var(--muted); }
 .text-dim { color: var(--text-dim); }
 .text-good { color: var(--good); }

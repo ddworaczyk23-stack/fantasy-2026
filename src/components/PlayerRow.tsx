@@ -32,7 +32,7 @@ export default function PlayerRow({
       <td>{rank}</td>
       <td>
         <span className="font-bold">{p.name}</span>
-        {shortcutHint !== undefined && <span className="text-xs text-muted"> ({shortcutHint})</span>}
+        {shortcutHint !== undefined && <span className="kbd text-xs ml-sm">{shortcutHint}</span>}
       </td>
       <td>
         <PositionPill position={p.position} />

@@ -6,6 +6,7 @@ import Chip from '../Chip'
 import EmptyState from '../EmptyState'
 
 const CONFIDENCE_LABEL: Record<string, string> = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' }
+const CONFIDENCE_TONE: Record<string, 'good' | 'accent' | 'warn'> = { high: 'good', medium: 'accent', low: 'warn' }
 
 export default function DraftNowCard({
   recommendation,
@@ -61,7 +62,7 @@ export default function DraftNowCard({
     <div className="panel draft-now" aria-label="Draft Now">
       <div className="panel__header">
         <h2 className="panel__title">Draft Now</h2>
-        <Chip tone="accent">{CONFIDENCE_LABEL[primary.confidence]}</Chip>
+        <Chip tone={CONFIDENCE_TONE[primary.confidence]}>{CONFIDENCE_LABEL[primary.confidence]}</Chip>
       </div>
       <div className="panel__body">
         <div className="draft-now__player">

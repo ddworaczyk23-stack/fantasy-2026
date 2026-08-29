@@ -109,47 +109,50 @@ export default function DraftRoom() {
   }
 
   return (
-    <div className="draft-room">
-      <div className="draft-room__col">
-        <DraftNowCard
-          recommendation={recommendation}
+    <div className="draft-room-page">
+      <div onKeyDown={handleSearchKeyDown}>
+        <AvailablePlayersPanel
+          ref={searchRef}
+          scored={scored}
+          teams={teams}
           onDraft={handleDraft}
-          clockTeamName={clockTeam?.name ?? ''}
+          onMarkDrafted={handleMarkDrafted}
+          search={search}
+          onSearchChange={setSearch}
+          onVisibleRowsChange={setVisibleRowIds}
         />
-        <AlternativesList alternatives={recommendation.alternatives} onDraft={handleDraft} />
-        <StrategyPanel strategyExplanation={recommendation.strategyExplanation} primary={recommendation.primary} />
       </div>
 
-      <div className="draft-room__col">
-        <CanIWaitPanel waitAnalysis={recommendation.waitAnalysis} />
-        <div onKeyDown={handleSearchKeyDown}>
-          <AvailablePlayersPanel
-            ref={searchRef}
-            scored={scored}
-            teams={teams}
+      <div className="draft-room">
+        <div className="draft-room__col">
+          <DraftNowCard
+            recommendation={recommendation}
             onDraft={handleDraft}
-            onMarkDrafted={handleMarkDrafted}
-            search={search}
-            onSearchChange={setSearch}
-            onVisibleRowsChange={setVisibleRowIds}
+            clockTeamName={clockTeam?.name ?? ''}
           />
+          <AlternativesList alternatives={recommendation.alternatives} onDraft={handleDraft} />
+          <StrategyPanel strategyExplanation={recommendation.strategyExplanation} primary={recommendation.primary} />
         </div>
-        <TierAlertPanel alerts={recommendation.tierAlerts} />
-      </div>
 
-      <div className="draft-room__col">
-        <MyRosterPanel roster={recommendation.roster} />
-        <RoomReadPanel roomRead={recommendation.roomRead} />
-        <CautionsPanel cautions={recommendation.cautions} />
-        <DraftHistoryPanel picks={picks} players={players} teams={teams} settings={settings} onUndo={undoLastPick} />
-        <DraftBoardPanel picks={picks} players={players} teams={teams} settings={settings} />
-      </div>
-
-      {draftComplete && (
-        <div style={{ gridColumn: '1 / -1' }}>
-          <EmptyState title="Draft complete" description="All picks have been made. Review your team on My Team, or export your results from Settings." />
+        <div className="draft-room__col">
+          <CanIWaitPanel waitAnalysis={recommendation.waitAnalysis} />
+          <TierAlertPanel alerts={recommendation.tierAlerts} />
         </div>
-      )}
+
+        <div className="draft-room__col">
+          <MyRosterPanel roster={recommendation.roster} />
+          <RoomReadPanel roomRead={recommendation.roomRead} />
+          <CautionsPanel cautions={recommendation.cautions} />
+          <DraftHistoryPanel picks={picks} players={players} teams={teams} settings={settings} onUndo={undoLastPick} />
+          <DraftBoardPanel picks={picks} players={players} teams={teams} settings={settings} />
+        </div>
+
+        {draftComplete && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <EmptyState title="Draft complete" description="All picks have been made. Review your team on My Team, or export your results from Settings." />
+          </div>
+        )}
+      </div>
 
       {helpOpen && <KeyboardHelpOverlay onClose={() => setHelpOpen(false)} />}
     </div>

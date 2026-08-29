@@ -2,7 +2,6 @@ import type { DraftPick, LeagueTeam, Player, LeagueSettings } from '../../types'
 import { roundForPick, indexInRound } from '../../engine/picks'
 import Panel from '../Panel'
 import EmptyState from '../EmptyState'
-import ConfirmButton from '../ConfirmButton'
 
 function indexInRoundLocal(pickNumber: number, teams: number): number {
   return indexInRound(pickNumber, teams)
@@ -31,9 +30,9 @@ export default function DraftHistoryPanel({
         <EmptyState title="No picks yet" description="Picks will appear here as the draft progresses." />
       ) : (
         <>
-          <ConfirmButton onConfirm={onUndo} className="btn btn-sm" confirmLabel="Confirm undo?">
+          <button type="button" onClick={onUndo} className="btn btn-sm">
             Undo last pick
-          </ConfirmButton>
+          </button>
           <div className="flex-col mt-sm">
             {ordered.map((pick) => {
               const player = playerById.get(pick.playerId)
