@@ -4,6 +4,7 @@ import { teamForPick } from './engine/picks'
 import { describeBoardSource, useBoardSource } from './components/sampleDataFlag'
 import ErrorBoundary from './components/ErrorBoundary'
 import ConfirmButton from './components/ConfirmButton'
+import SleeperSyncBadge from './components/SleeperSyncBadge'
 import DraftRoom from './views/DraftRoom'
 import MyTeam from './views/MyTeam'
 import Rankings from './views/Rankings'
@@ -98,6 +99,7 @@ function AppShell() {
         </div>
         {onTheClock && !draftComplete && <span className="your-pick-flag">YOUR PICK</span>}
         <div className="app-header__spacer" />
+        <SleeperSyncBadge />
         <button
           type="button"
           className="icon-btn"

@@ -225,6 +225,30 @@ a { color: inherit; }
 }
 .app-header__spacer { flex: 1; }
 
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.status-dot.status-good { background: var(--good); }
+.status-dot.status-warn { background: var(--warn); }
+.status-dot.status-neutral { background: var(--muted); }
+
+.sleeper-sync-badge { color: var(--text-dim); }
+
+.callout {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  background: var(--panel-raised);
+}
+.callout-good { border-color: var(--good); background: color-mix(in srgb, var(--good) 12%, var(--panel-raised)); }
+.callout-warn { border-color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, var(--panel-raised)); }
+.callout-neutral { border-color: var(--border-strong); }
+
 .icon-btn, .btn {
   border: 1px solid var(--border-strong);
   background: var(--panel-raised);
