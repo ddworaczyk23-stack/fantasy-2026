@@ -652,6 +652,7 @@ input[type="checkbox"], input[type="radio"] { width: 17px; height: 17px; accent-
 .text-muted { color: var(--muted); }
 .text-dim { color: var(--text-dim); }
 .text-good { color: var(--good); }
+.text-warn { color: var(--warn); }
 .text-critical { color: var(--critical); }
 .text-sm { font-size: 0.82rem; }
 .text-xs { font-size: 0.72rem; }

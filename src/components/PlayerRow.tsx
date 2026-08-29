@@ -1,4 +1,4 @@
-import type { LeagueTeam, ScoredPlayer } from '../types'
+import type { Caution, LeagueTeam, ScoredPlayer } from '../types'
 import PositionPill from './PositionPill'
 
 function valueClass(value: number): string {
@@ -18,6 +18,7 @@ export default function PlayerRow({
   onDraft,
   onMarkDrafted,
   shortcutHint,
+  caution,
 }: {
   rank: number
   scored: ScoredPlayer
@@ -25,6 +26,7 @@ export default function PlayerRow({
   onDraft: () => void
   onMarkDrafted: (teamId: string) => void
   shortcutHint?: number
+  caution?: Caution
 }) {
   const p = scored.player
   return (
@@ -33,6 +35,15 @@ export default function PlayerRow({
       <td>
         <span className="font-bold">{p.name}</span>
         {shortcutHint !== undefined && <span className="kbd text-xs ml-sm">{shortcutHint}</span>}
+        {caution && (
+          <span
+            className={caution.severity === 'critical' ? 'text-critical ml-sm' : 'text-warn ml-sm'}
+            title={caution.message}
+            aria-label={`Caution: ${caution.message}`}
+          >
+            ⚠️
+          </span>
+        )}
       </td>
       <td>
         <PositionPill position={p.position} />

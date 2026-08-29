@@ -121,6 +121,7 @@ export default function DraftRoom() {
           ref={searchRef}
           scored={scored}
           teams={teams}
+          cautions={recommendation.cautions}
           onDraft={handleDraft}
           onMarkDrafted={handleMarkDrafted}
           search={search}

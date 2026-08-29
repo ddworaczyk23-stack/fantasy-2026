@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, forwardRef } from 'react'
-import type { LeagueTeam, Position, ScoredPlayer } from '../../types'
+import type { Caution, LeagueTeam, Position, ScoredPlayer } from '../../types'
 import { POSITIONS } from '../../types'
 import Panel from '../Panel'
 import PlayerRow from '../PlayerRow'
@@ -12,13 +12,14 @@ const PAGE_SIZE = 120
 const AvailablePlayersPanel = forwardRef<HTMLInputElement, {
   scored: ScoredPlayer[]
   teams: LeagueTeam[]
+  cautions: Caution[]
   onDraft: (playerId: string) => void
   onMarkDrafted: (playerId: string, teamId: string) => void
   search: string
   onSearchChange: (v: string) => void
   onVisibleRowsChange: (ids: string[]) => void
 }>(function AvailablePlayersPanel(
-  { scored, teams, onDraft, onMarkDrafted, search, onSearchChange, onVisibleRowsChange },
+  { scored, teams, cautions, onDraft, onMarkDrafted, search, onSearchChange, onVisibleRowsChange },
   searchRef,
 ) {
   const [posFilter, setPosFilter] = useState<Set<Position>>(new Set())
@@ -27,6 +28,12 @@ const AvailablePlayersPanel = forwardRef<HTMLInputElement, {
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [limit, setLimit] = useState(PAGE_SIZE)
+
+  const cautionByPlayerId = useMemo(() => {
+    const m = new Map<string, Caution>()
+    for (const c of cautions) m.set(c.playerId, c)
+    return m
+  }, [cautions])
 
   function togglePos(pos: Position) {
     setPosFilter((prev) => {
@@ -178,6 +185,7 @@ const AvailablePlayersPanel = forwardRef<HTMLInputElement, {
                   onDraft={() => onDraft(s.player.id)}
                   onMarkDrafted={(teamId) => onMarkDrafted(s.player.id, teamId)}
                   shortcutHint={i < 6 ? i + 1 : undefined}
+                  caution={cautionByPlayerId.get(s.player.id)}
                 />
               ))}
             </tbody>
