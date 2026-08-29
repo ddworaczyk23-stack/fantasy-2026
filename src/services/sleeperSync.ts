@@ -1,4 +1,4 @@
-import { slotForPick } from '../engine/picks'
+import { ownerSlotForPick, slotForPick } from '../engine/picks'
 import type { DraftPick, LeagueSettings, LeagueTeam, Player, RosterSlots } from '../types'
 import type {
   SleeperDraftInfo,
@@ -146,12 +146,17 @@ export function reconcilePicks(
       continue
     }
     used.add(player.id)
-    const team = teams.find((t) => t.slot === sp.slot)
+    // `draft_slot` is the seat the pick sits in, NOT who owns it. When a pick
+    // has been traded the two differ, so ownership decides the team - otherwise
+    // a traded first lands on the wrong roster. Sleeper's own pick_no is used
+    // for the lookup, before any local renumbering below.
+    const ownerSlot = ownerSlotForPick(sp.pickNumber, settings)
+    const team = teams.find((t) => t.slot === ownerSlot)
     picks.push({
       pickNumber: sp.pickNumber,
       round: sp.round,
-      slot: sp.slot,
-      teamId: team?.id ?? `team-${sp.slot}`,
+      slot: ownerSlot,
+      teamId: team?.id ?? `team-${ownerSlot}`,
       playerId: player.id,
       timestamp: 0,
     })

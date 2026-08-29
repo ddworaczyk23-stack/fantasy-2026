@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { myPickNumbers, ownerSlotForPick, teamForPick } from '../../engine/picks'
-import { pickOwnersFromTrades } from '../../services/sleeperSync'
-import type { SleeperTradedPick } from '../../services/sleeperAdapter'
-import type { LeagueSettings, LeagueTeam } from '../../types'
+import { pickOwnersFromTrades, reconcilePicks } from '../../services/sleeperSync'
+import type { SleeperDraftPick, SleeperTradedPick } from '../../services/sleeperAdapter'
+import type { LeagueSettings, LeagueTeam, Player } from '../../types'
 
 const SHAPE = { teams: 12, rounds: 15, snake: true, thirdRoundReversal: false }
 
@@ -83,5 +83,60 @@ describe('traded picks change who owns a pick', () => {
       isMe: i + 1 === 8,
     }))
     expect(teamForPick(8, teams, s)?.slot).toBe(3)
+  })
+})
+
+describe('a traded pick lands on the roster that owns it', () => {
+  // Real shape from SZN #7: slot 8 and slot 9 swapped their rounds 1 and 2,
+  // so pick 8 belongs to slot 9 and pick 9 belongs to slot 8.
+  const s = settings({ 8: 9, 9: 8, 16: 8, 17: 9 })
+
+  const teams: LeagueTeam[] = Array.from({ length: 12 }, (_, i) => ({
+    id: `team-${i + 1}`,
+    name: `Team ${i + 1}`,
+    slot: i + 1,
+    isMe: i + 1 === 9,
+  }))
+
+  const player = (id: string, name: string, position: Player['position'], team: string): Player => ({
+    id,
+    name,
+    team,
+    position,
+    bye: 6,
+    overallRank: 1,
+    posRank: 1,
+    tier: 1,
+    adp: 1,
+    projPoints: 0,
+    upside: 0,
+    floor: 0,
+    risk: 0,
+    notes: '',
+    tags: [],
+    rationale: '',
+    customRank: null,
+  })
+
+  const players: Player[] = [
+    player('p-puka', 'Puka Nacua', 'WR', 'LAR'),
+    player('p-cook', 'James Cook', 'RB', 'BUF'),
+  ]
+
+  // Sleeper keeps draft_slot at the seat number even after a trade, which is
+  // exactly the trap this guards against.
+  const sleeperPicks: SleeperDraftPick[] = [
+    { pickNumber: 8, round: 1, slot: 8, rosterId: '6', pickedBy: '', playerName: 'Puka Nacua', position: 'WR', team: 'LAR' },
+    { pickNumber: 9, round: 1, slot: 9, rosterId: '2', pickedBy: '', playerName: 'James Cook', position: 'RB', team: 'BUF' },
+  ]
+
+  it('does not follow draft_slot onto the wrong team', () => {
+    const { picks } = reconcilePicks(sleeperPicks, players, teams, s)
+    const puka = picks.find((p) => p.playerId === 'p-puka')
+    const cook = picks.find((p) => p.playerId === 'p-cook')
+    expect(puka?.slot).toBe(9)
+    expect(puka?.teamId).toBe('team-9')
+    expect(cook?.slot).toBe(8)
+    expect(cook?.teamId).toBe('team-8')
   })
 })
