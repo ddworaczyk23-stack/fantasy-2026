@@ -112,7 +112,7 @@ function riskPenalty(player: Player, ctx: EngineContext): number {
   if (player.tags.includes('injury-concern')) base += 10
   if (player.tags.includes('avoid-at-cost')) base += 8
   const round = roundForPick(ctx.currentPick, ctx.settings.teams)
-  const earlyMultiplier = round <= 3 ? 1.5 : round <= 6 ? 1.2 : 1.0
+  const earlyMultiplier = round <= 3 ? 1.2 : round <= 6 ? 1.1 : 1.0
   return -Math.min(35, base * earlyMultiplier)
 }
 
@@ -308,7 +308,7 @@ export function scorePlayer(
     player,
     score,
     breakdown,
-    valueVsAdp: player.adp - ctx.currentPick,
+    valueVsAdp: 0,
     fitScore: fit,
     confidence,
     riskFlags,
@@ -329,4 +329,5 @@ export function scoreAvailable(ctx: EngineContext): ScoredPlayer[] {
   return available
     .map((p) => scorePlayer(p, ctx, roster, tiers, room))
     .sort((a, b) => b.score - a.score)
+    .map((s, i) => ({ ...s, valueVsAdp: s.player.adp - (i + 1) }))
 }
