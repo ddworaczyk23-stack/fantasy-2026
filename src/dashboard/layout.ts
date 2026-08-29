@@ -22,15 +22,24 @@ export type DashboardLayout = DashboardLayoutEntry[]
 
 export const DASHBOARD_LAYOUT_VERSION = 1
 
-// Grid packing quantum: each tile's height is measured and converted to a
-// `grid-row: span N` in these units, so short and tall tiles don't stretch
-// to match their row-mates. Must match the values baked into the
-// `.draft-room` grid-auto-rows / gap rules in styles.css.
-export const GRID_ROW_UNIT_PX = 8
+// Pixel gap between tiles, both directions. Must match the packing math in
+// DashboardGrid (which positions tiles with inline top/left/width, not a
+// native CSS grid — see DashboardGrid for why).
 export const GRID_GAP_PX = 14
 
-// Draft Now (span 1) followed by Available Players (span 2) lands them on
-// the same row via CSS Grid auto-placement: Draft Now top-left, Available
+// Column count breakpoints. Must match the widths DashboardGrid's resize
+// listener uses to recompute the pack.
+export const COLUMNS_BREAKPOINT_2 = 1100
+export const COLUMNS_BREAKPOINT_3 = 1600
+
+export function columnsForWidth(width: number): number {
+  if (width >= COLUMNS_BREAKPOINT_3) return 3
+  if (width >= COLUMNS_BREAKPOINT_2) return 2
+  return 1
+}
+
+// Draft Now (span 1) followed by Available Players (span 2): with 3 columns
+// available they land in the same row, Draft Now top-left and Available
 // Players spanning top-middle + top-right.
 export const DEFAULT_DASHBOARD_LAYOUT: DashboardLayout = [
   { id: 'draft-now', span: 1 },

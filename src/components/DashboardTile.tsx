@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import { useEffect, useRef } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { PanelId, PanelSpan } from '../dashboard/layout'
-import { GRID_GAP_PX, GRID_ROW_UNIT_PX } from '../dashboard/layout'
 
 const SPAN_LABEL: Record<PanelSpan, string> = { 1: 'Narrow', 2: 'Medium', 3: 'Wide' }
 
@@ -11,45 +10,54 @@ export default function DashboardTile({
   id,
   span,
   editMode,
+  top,
+  left,
+  width,
   onCycleSpan,
+  onHeightChange,
   children,
 }: {
   id: PanelId
   span: PanelSpan
   editMode: boolean
+  top: number
+  left: string
+  width: string
   onCycleSpan: (id: PanelId) => void
+  onHeightChange: (id: PanelId, height: number) => void
   children: ReactNode
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const contentRef = useRef<HTMLDivElement | null>(null)
-  const [rowSpan, setRowSpan] = useState(1)
 
-  // Convert the tile's real rendered height into a grid-row span so it only
-  // takes the vertical space it needs, letting shorter/taller neighbours
-  // pack into the same visual row instead of all stretching to match.
+  // Report real rendered height up so the parent can pack tiles Pinterest-
+  // style (see DashboardGrid) instead of every tile stretching to match its
+  // row-mates or the visual order shifting when a tile's height changes.
   useEffect(() => {
     const el = contentRef.current
     if (!el || typeof ResizeObserver === 'undefined') return
     const observer = new ResizeObserver((entries) => {
       const height = entries[0]?.contentRect.height ?? el.offsetHeight
-      const span = Math.max(1, Math.ceil((height + GRID_GAP_PX) / (GRID_ROW_UNIT_PX + GRID_GAP_PX)))
-      setRowSpan(span)
+      onHeightChange(id, height)
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  const style: CSSProperties = {
+    position: 'absolute',
+    top,
+    left,
+    width,
+    transform: CSS.Translate.toString(transform),
+    // Only top/left animate (repack reflow); width snaps instantly since it
+    // only changes on an explicit user click (span cycling), not every repack.
+    transition: isDragging ? undefined : `top 150ms ease, left 150ms ease, ${transition ?? ''}`,
+  }
 
   return (
-    <div
-      ref={setNodeRef}
-      className={`dashboard-tile${isDragging ? ' dashboard-tile--dragging' : ''}`}
-      style={{
-        gridColumn: `span ${span}`,
-        gridRow: `span ${rowSpan}`,
-        transform: CSS.Transform.toString(transform),
-        transition,
-      }}
-    >
+    <div ref={setNodeRef} className={`dashboard-tile${isDragging ? ' dashboard-tile--dragging' : ''}`} style={style}>
       <div ref={contentRef}>
         {editMode && (
           <div className="dashboard-tile__toolbar">
