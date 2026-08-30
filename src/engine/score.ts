@@ -329,5 +329,12 @@ export function scoreAvailable(ctx: EngineContext): ScoredPlayer[] {
   return available
     .map((p) => scorePlayer(p, ctx, roster, tiers, room))
     .sort((a, b) => b.score - a.score)
-    .map((s, i) => ({ ...s, valueVsAdp: s.player.adp - (i + 1) }))
+    .map((s, i) => {
+      // Where MY board would actually take him: the pick on the clock plus his
+      // rank among what's left. Comparing his real ADP to his index in the
+      // remaining pool (instead of this) drifts further off with every pick
+      // already made, since that index isn't a pick number at all.
+      const myPick = ctx.currentPick + i
+      return { ...s, valueVsAdp: s.player.adp - myPick }
+    })
 }

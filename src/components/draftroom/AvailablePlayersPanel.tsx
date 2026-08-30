@@ -107,10 +107,10 @@ const AvailablePlayersPanel = forwardRef<HTMLInputElement, {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleIds])
 
-  function sortHeader(key: SortKey, label: string) {
+  function sortHeader(key: SortKey, label: string, title?: string) {
     const active = sortKey === key
     return (
-      <th key={key}>
+      <th key={key} title={title}>
         <button type="button" onClick={() => toggleSort(key)} aria-label={`Sort by ${label}`}>
           {label} {active ? (sortDir === 'asc' ? '▲' : '▼') : ''}
         </button>
@@ -169,7 +169,11 @@ const AvailablePlayersPanel = forwardRef<HTMLInputElement, {
                 {sortHeader('bye', 'Bye')}
                 {sortHeader('tier', 'Tier')}
                 {sortHeader('adp', 'ADP')}
-                {sortHeader('value', 'Value vs ADP')}
+                {sortHeader(
+                  'value',
+                  'Value vs ADP',
+                  'Positive = your board likes him more than the market does (his ADP is later than the pick your ranking would take him at). Negative = a reach the other way.',
+                )}
                 {sortHeader('proj', 'Proj')}
                 {sortHeader('score', 'Score')}
                 <th>Actions</th>
