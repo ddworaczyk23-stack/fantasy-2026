@@ -38,26 +38,19 @@ export default function SleeperPanel() {
     }
   }
 
-  // ---- auto-sync polling -------------------------------------------------
-  // A ref holds the latest action so the interval never captures a stale
-  // closure, and the interval is torn down whenever auto-sync is switched off.
-  const syncRef = useRef(sleeperSyncPicks)
-  syncRef.current = sleeperSyncPicks
-
+  // Auto-sync itself runs in AppShell (always mounted) so it keeps polling
+  // no matter which tab is open. This panel just shows the latest result
+  // when the user is looking at it.
+  const lastResultRef = useRef(sleeper.lastSyncAt)
   useEffect(() => {
-    if (!sleeper.autoSync || !sleeper.draftId) return
-    const ms = Math.max(5, sleeper.pollSeconds) * 1000
-    let cancelled = false
-    const id = setInterval(() => {
-      void syncRef.current().then((res) => {
-        if (!cancelled) report(res)
-      })
-    }, ms)
-    return () => {
-      cancelled = true
-      clearInterval(id)
+    if (sleeper.lastSyncAt !== lastResultRef.current) {
+      lastResultRef.current = sleeper.lastSyncAt
+      if (sleeper.autoSync) {
+        setMessage(sleeper.lastError ?? 'Auto-sync ran.')
+        setTone(sleeper.lastError ? 'warn' : 'good')
+      }
     }
-  }, [sleeper.autoSync, sleeper.draftId, sleeper.pollSeconds])
+  }, [sleeper.lastSyncAt, sleeper.lastError, sleeper.autoSync])
 
   const lastSync = sleeper.lastSyncAt ? new Date(sleeper.lastSyncAt).toLocaleTimeString() : 'never'
 

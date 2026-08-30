@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDraftStore, useEngineContext, useRecommendation } from './store/draftStore'
 import { teamForPick } from './engine/picks'
 import { describeBoardSource, useBoardSource } from './components/sampleDataFlag'
@@ -42,11 +42,28 @@ function AppShell() {
   const ctx = useEngineContext()
   const recommendation = useRecommendation()
   const boardBadge = describeBoardSource(useBoardSource())
+  const sleeper = useDraftStore((s) => s.sleeper)
+  const sleeperSyncPicks = useDraftStore((s) => s.sleeperSyncPicks)
 
   useEffect(() => {
     hydrate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Auto-sync polling lives here, in the always-mounted app shell, so it
+  // keeps running no matter which tab is open. It used to live inside the
+  // Settings panel and silently stopped the moment that panel unmounted.
+  const syncRef = useRef(sleeperSyncPicks)
+  syncRef.current = sleeperSyncPicks
+
+  useEffect(() => {
+    if (!sleeper.autoSync || !sleeper.draftId) return
+    const ms = Math.max(5, sleeper.pollSeconds) * 1000
+    const id = setInterval(() => {
+      void syncRef.current()
+    }, ms)
+    return () => clearInterval(id)
+  }, [sleeper.autoSync, sleeper.draftId, sleeper.pollSeconds])
 
   function toggleTheme() {
     const next = theme === 'dark' ? 'light' : 'dark'
