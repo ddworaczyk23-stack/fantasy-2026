@@ -44,6 +44,9 @@ function AppShell() {
   const boardBadge = describeBoardSource(useBoardSource())
   const sleeper = useDraftStore((s) => s.sleeper)
   const sleeperSyncPicks = useDraftStore((s) => s.sleeperSyncPicks)
+  const leagues = useDraftStore((s) => s.leagues)
+  const leagueId = useDraftStore((s) => s.leagueId)
+  const switchLeague = useDraftStore((s) => s.switchLeague)
 
   useEffect(() => {
     hydrate()
@@ -96,6 +99,20 @@ function AppShell() {
     <div className="app">
       <header className="app-header">
         <div className="app-header__brand">Draft Day Command Center</div>
+        {leagues.length > 0 && (
+          <select
+            className="league-switcher"
+            aria-label="Active league"
+            value={leagueId}
+            onChange={(e) => switchLeague(e.target.value)}
+          >
+            {leagues.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </select>
+        )}
         <span className={`sample-badge sample-badge--${boardBadge.tone}`} title={boardBadge.title}>
           {boardBadge.text}
         </span>
@@ -132,8 +149,8 @@ function AppShell() {
         <ConfirmButton
           onConfirm={() => resetAll()}
           className="icon-btn"
-          ariaLabel="Reset everything"
-          confirmLabel="Confirm reset?"
+          ariaLabel="Reset this league"
+          confirmLabel="Confirm reset this league?"
         >
           Reset
         </ConfirmButton>

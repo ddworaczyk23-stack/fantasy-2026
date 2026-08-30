@@ -7,12 +7,14 @@ import ConfirmButton from '../ConfirmButton'
 export default function ImportExportPanel() {
   const exportJson = useDraftStore((s) => s.exportJson)
   const importJson = useDraftStore((s) => s.importJson)
+  const importJsonToNewLeague = useDraftStore((s) => s.importJsonToNewLeague)
   const loadSampleDraft = useDraftStore((s) => s.loadSampleDraft)
   const resetDraft = useDraftStore((s) => s.resetDraft)
   const resetAll = useDraftStore((s) => s.resetAll)
 
   const [importError, setImportError] = useState<string | null>(null)
   const [throughPick, setThroughPick] = useState(20)
+  const [newLeagueName, setNewLeagueName] = useState('')
   const fileRef = useRef<HTMLInputElement | null>(null)
 
   function exportNow() {
@@ -46,6 +48,27 @@ export default function ImportExportPanel() {
     e.target.value = ''
   }
 
+  function handleNewLeagueFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const name = newLeagueName.trim()
+    if (!name) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const text = String(reader.result ?? '')
+      const result = importJsonToNewLeague(text, name)
+      if (!result.ok) {
+        setImportError(result.error ?? 'Import failed for an unknown reason.')
+      } else {
+        setImportError(null)
+        setNewLeagueName('')
+        setIsSampleData(false)
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
+
   return (
     <Panel title="Import / Export State">
       <div className="flex-row flex-wrap">
@@ -56,6 +79,29 @@ export default function ImportExportPanel() {
           Import state (JSON)…
         </label>
         <input id="state-upload" ref={fileRef} type="file" accept="application/json" className="sr-only" onChange={handleFile} />
+      </div>
+      <div className="field mt-sm">
+        <label htmlFor="import-new-league-name">Import into a new league</label>
+        <div className="flex-row flex-wrap">
+          <input
+            id="import-new-league-name"
+            type="text"
+            value={newLeagueName}
+            onChange={(e) => setNewLeagueName(e.target.value)}
+            placeholder="New league name"
+          />
+          <label className="btn" htmlFor="state-upload-new" aria-disabled={!newLeagueName.trim()}>
+            Import as new league...
+          </label>
+          <input
+            id="state-upload-new"
+            type="file"
+            accept="application/json"
+            className="sr-only"
+            onChange={handleNewLeagueFile}
+            disabled={!newLeagueName.trim()}
+          />
+        </div>
       </div>
       {importError && (
         <p className="text-sm mt-sm" style={{ color: 'var(--critical)' }}>

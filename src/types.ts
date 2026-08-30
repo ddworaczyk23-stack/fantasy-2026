@@ -360,6 +360,19 @@ export interface SavedState {
   sleeper: SleeperConfig
 }
 
+export interface LeagueMeta {
+  id: string
+  name: string
+  createdAt: number
+  updatedAt: number
+}
+
+export interface LeagueRegistry {
+  version: number
+  activeLeagueId: string
+  leagues: LeagueMeta[]
+}
+
 export interface CsvImportResult {
   players: Player[]
   rowCount: number

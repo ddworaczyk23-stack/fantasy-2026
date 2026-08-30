@@ -7,6 +7,7 @@ import WeightsPanel from '../components/settings/WeightsPanel'
 import SleeperPanel from '../components/settings/SleeperPanel'
 import ImportExportPanel from '../components/settings/ImportExportPanel'
 import ChecklistPanel from '../components/settings/ChecklistPanel'
+import LeaguesPanel from '../components/settings/LeaguesPanel'
 
 const ROSTER_KEYS: (keyof RosterSlots)[] = ['QB', 'RB', 'WR', 'TE', 'FLEX', 'DST', 'K', 'BENCH']
 const SCORING_OPTIONS: { value: ScoringFormat; label: string }[] = [
@@ -48,6 +49,7 @@ export default function SettingsView() {
   return (
     <div className="draft-room">
       <div className="draft-room__col">
+        <LeaguesPanel />
         <Panel title="League Settings">
           <div className="flex-col">
             <div className="field">

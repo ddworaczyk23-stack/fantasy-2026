@@ -3,6 +3,7 @@ import { create } from 'zustand'
 import type {
   DraftPick,
   EngineContext,
+  LeagueMeta,
   LeagueSettings,
   LeagueTeam,
   Player,
@@ -12,13 +13,26 @@ import type {
   SleeperConfig,
   Weights,
 } from '../types'
-import { DEFAULT_SETTINGS, DEFAULT_SLEEPER, DEFAULT_WEIGHTS, STATE_VERSION } from '../engine/defaults'
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_SLEEPER,
+  DEFAULT_WEIGHTS,
+  LEAGUE_REGISTRY_VERSION,
+  STATE_VERSION,
+  makeLeagueId,
+} from '../engine/defaults'
 import { currentPickNumber, roundForPick, slotForPick, teamForPick } from '../engine/picks'
 import { recommend } from '../engine'
 import { makeSamplePlayers } from '../data/samplePlayers'
 import { makeFantasyProsPlayers } from '../data/fantasyProsBoard'
 import { makeSampleDraft, makeSampleTeams } from '../data/sampleLeague'
-import { clearState, loadState, saveState } from '../services/persistence'
+import {
+  clearState,
+  loadOrMigrateLeagueRegistry,
+  loadState,
+  saveLeagueRegistry,
+  saveState,
+} from '../services/persistence'
 import { getSleeperAdapter, type SleeperLeagueSummary } from '../services/sleeperAdapter'
 import { importLeague, reconcilePicks } from '../services/sleeperSync'
 
@@ -36,13 +50,26 @@ export interface DraftStore {
   weights: Weights
   sleeper: SleeperConfig
   hydrated: boolean
+  leagueId: string
+  leagues: LeagueMeta[]
 
   hydrate(): void
   draftPlayer(playerId: string, teamId?: string): void
   undoLastPick(): void
   resetDraft(): void
   loadSampleDraft(throughPick: number): void
+  /** Resets ONLY the active league's board/picks/settings. Other leagues are untouched. */
   resetAll(): void
+
+  /** Switch to another already-existing league. */
+  switchLeague(id: string): void
+  /** Create a brand-new, empty league and switch into it. Returns its id. */
+  createLeague(name: string): string
+  renameLeague(id: string, name: string): void
+  /** Refuses if this is the last remaining league. */
+  deleteLeague(id: string): void
+  /** Imports a JSON export into a brand-new league instead of overwriting the current one. */
+  importJsonToNewLeague(json: string, name: string): { ok: boolean; error?: string; leagueId?: string }
 
   setPlayers(players: Player[]): void
   updatePlayer(id: string, patch: Partial<Player>): void
@@ -67,7 +94,8 @@ export interface DraftStore {
   importJson(json: string): { ok: boolean; error?: string }
 }
 
-function initialState() {
+/** The board/picks/settings/weights/sleeper slice a brand-new league starts with. */
+function freshLeagueState() {
   return {
     players: makeFantasyProsPlayers(DEFAULT_SETTINGS),
     teams: makeSampleTeams(DEFAULT_SETTINGS.teams, DEFAULT_SETTINGS.mySlot),
@@ -75,6 +103,14 @@ function initialState() {
     settings: { ...DEFAULT_SETTINGS },
     weights: { ...DEFAULT_WEIGHTS },
     sleeper: { ...DEFAULT_SLEEPER },
+  }
+}
+
+function initialState() {
+  return {
+    ...freshLeagueState(),
+    leagueId: '',
+    leagues: [] as LeagueMeta[],
     hydrated: false,
   }
 }
@@ -122,24 +158,48 @@ function toSavedState(s: {
   }
 }
 
+/** Normalise a loaded/imported SavedState-shaped blob against current defaults. */
+function normalizeLoaded(saved: SavedState, fallbackTeams: LeagueTeam[]) {
+  return {
+    players: Array.isArray(saved.players) && saved.players.length > 0 ? saved.players : makeFantasyProsPlayers(DEFAULT_SETTINGS),
+    picks: Array.isArray(saved.picks) ? saved.picks : [],
+    teams: Array.isArray(saved.teams) && saved.teams.length > 0 ? saved.teams : fallbackTeams,
+    settings: { ...DEFAULT_SETTINGS, ...saved.settings },
+    weights: { ...DEFAULT_WEIGHTS, ...saved.weights },
+    sleeper: { ...DEFAULT_SLEEPER, ...saved.sleeper },
+  }
+}
+
+/** Shared validation for a JSON export, used by both importJson and importJsonToNewLeague. */
+function parseSavedStateJson(json: string): { ok: true; state: SavedState } | { ok: false; error: string } {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(json)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Failed to parse JSON.' }
+  }
+  if (!parsed || typeof parsed !== 'object') return { ok: false, error: 'Not a valid JSON object.' }
+  const p = parsed as Record<string, unknown>
+  if (p.version !== STATE_VERSION) return { ok: false, error: `Unsupported version "${String(p.version)}".` }
+  if (!Array.isArray(p.players) || !Array.isArray(p.picks) || !Array.isArray(p.teams)) {
+    return { ok: false, error: 'Missing players, picks, or teams array.' }
+  }
+  const settings = p.settings as Record<string, unknown> | undefined
+  if (!settings || typeof settings.teams !== 'number') {
+    return { ok: false, error: 'Missing or invalid settings.' }
+  }
+  return { ok: true, state: parsed as SavedState }
+}
+
 export const useDraftStore = create<DraftStore>()((set, get) => ({
   ...initialState(),
 
   hydrate() {
-    const saved = loadState()
-    if (saved) {
-      set({
-        players: Array.isArray(saved.players) && saved.players.length > 0 ? saved.players : makeFantasyProsPlayers(DEFAULT_SETTINGS),
-        picks: Array.isArray(saved.picks) ? saved.picks : [],
-        teams: Array.isArray(saved.teams) && saved.teams.length > 0 ? saved.teams : get().teams,
-        settings: { ...DEFAULT_SETTINGS, ...saved.settings },
-        weights: { ...DEFAULT_WEIGHTS, ...saved.weights },
-        sleeper: { ...DEFAULT_SLEEPER, ...saved.sleeper },
-        hydrated: true,
-      })
-    } else {
-      set({ hydrated: true })
-    }
+    const registry = loadOrMigrateLeagueRegistry()
+    const leagueId = registry.activeLeagueId
+    const saved = loadState(leagueId)
+    const base = saved ? normalizeLoaded(saved, get().teams) : freshLeagueState()
+    set({ ...base, leagueId, leagues: registry.leagues, hydrated: true })
   },
 
   draftPlayer(playerId, teamId) {
@@ -181,8 +241,65 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
   },
 
   resetAll() {
-    clearState()
-    set({ ...initialState(), hydrated: true })
+    const { leagueId, leagues } = get()
+    clearState(leagueId)
+    set({ ...freshLeagueState(), leagueId, leagues, hydrated: true })
+  },
+
+  switchLeague(id) {
+    const { leagueId, leagues } = get()
+    if (id === leagueId || !leagues.some((l) => l.id === id)) return
+    flushPersist()
+    const saved = loadState(id)
+    const base = saved ? normalizeLoaded(saved, get().teams) : freshLeagueState()
+    set({ ...base, leagueId: id })
+    saveLeagueRegistry({ version: LEAGUE_REGISTRY_VERSION, activeLeagueId: id, leagues })
+  },
+
+  createLeague(name) {
+    flushPersist()
+    const id = makeLeagueId()
+    const now = Date.now()
+    const fresh = freshLeagueState()
+    saveState(toSavedState(fresh), id)
+    const leagues = [...get().leagues, { id, name, createdAt: now, updatedAt: now }]
+    saveLeagueRegistry({ version: LEAGUE_REGISTRY_VERSION, activeLeagueId: id, leagues })
+    set({ ...fresh, leagueId: id, leagues })
+    return id
+  },
+
+  renameLeague(id, name) {
+    const leagues = get().leagues.map((l) => (l.id === id ? { ...l, name, updatedAt: Date.now() } : l))
+    saveLeagueRegistry({ version: LEAGUE_REGISTRY_VERSION, activeLeagueId: get().leagueId, leagues })
+    set({ leagues })
+  },
+
+  deleteLeague(id) {
+    const { leagues } = get()
+    if (leagues.length <= 1) return
+    if (id === get().leagueId) {
+      const other = leagues.find((l) => l.id !== id)
+      if (other) get().switchLeague(other.id)
+    }
+    clearState(id)
+    const remaining = get().leagues.filter((l) => l.id !== id)
+    saveLeagueRegistry({ version: LEAGUE_REGISTRY_VERSION, activeLeagueId: get().leagueId, leagues: remaining })
+    set({ leagues: remaining })
+  },
+
+  importJsonToNewLeague(json, name) {
+    const parsed = parseSavedStateJson(json)
+    if (!parsed.ok) return { ok: false, error: parsed.error }
+
+    flushPersist()
+    const id = makeLeagueId()
+    const now = Date.now()
+    const base = normalizeLoaded(parsed.state, makeSampleTeams(DEFAULT_SETTINGS.teams, DEFAULT_SETTINGS.mySlot))
+    saveState(toSavedState(base), id)
+    const leagues = [...get().leagues, { id, name, createdAt: now, updatedAt: now }]
+    saveLeagueRegistry({ version: LEAGUE_REGISTRY_VERSION, activeLeagueId: id, leagues })
+    set({ ...base, leagueId: id, leagues })
+    return { ok: true, leagueId: id }
   },
 
   setPlayers(players) {
@@ -347,32 +464,10 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
   },
 
   importJson(json) {
-    try {
-      const parsed = JSON.parse(json)
-      if (!parsed || typeof parsed !== 'object') {
-        return { ok: false, error: 'Not a valid JSON object.' }
-      }
-      if (parsed.version !== STATE_VERSION) {
-        return { ok: false, error: `Unsupported version "${parsed.version}".` }
-      }
-      if (!Array.isArray(parsed.players) || !Array.isArray(parsed.picks) || !Array.isArray(parsed.teams)) {
-        return { ok: false, error: 'Missing players, picks, or teams array.' }
-      }
-      if (!parsed.settings || typeof parsed.settings.teams !== 'number') {
-        return { ok: false, error: 'Missing or invalid settings.' }
-      }
-      set({
-        players: parsed.players,
-        picks: parsed.picks,
-        teams: parsed.teams,
-        settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
-        weights: { ...DEFAULT_WEIGHTS, ...parsed.weights },
-        sleeper: { ...DEFAULT_SLEEPER, ...parsed.sleeper },
-      })
-      return { ok: true }
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : 'Failed to parse JSON.' }
-    }
+    const parsed = parseSavedStateJson(json)
+    if (!parsed.ok) return { ok: false, error: parsed.error }
+    set(normalizeLoaded(parsed.state, get().teams))
+    return { ok: true }
   },
 }))
 
@@ -384,14 +479,33 @@ export const useDraftStore = create<DraftStore>()((set, get) => ({
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 const PERSIST_DEBOUNCE_MS = 250
 
+/**
+ * Cancel any pending debounced write and save the CURRENT league's state
+ * immediately. Called before every action that changes `leagueId`, so a
+ * quick switch can neither lose the outgoing league's last edit nor write it
+ * under the wrong key (see `switchLeague`/`createLeague`/`deleteLeague`).
+ */
+function flushPersist() {
+  if (persistTimer) {
+    clearTimeout(persistTimer)
+    persistTimer = null
+  }
+  const { leagueId, players, picks, teams, settings, weights, sleeper } = useDraftStore.getState()
+  if (!leagueId) return
+  saveState(toSavedState({ players, picks, teams, settings, weights, sleeper }), leagueId)
+}
+
 useDraftStore.subscribe((state) => {
   if (!state.hydrated) return
   if (persistTimer) clearTimeout(persistTimer)
   persistTimer = setTimeout(() => {
-    const { players, picks, teams, settings, weights, sleeper } = useDraftStore.getState()
-    saveState(toSavedState({ players, picks, teams, settings, weights, sleeper }))
+    const { leagueId, players, picks, teams, settings, weights, sleeper } = useDraftStore.getState()
+    if (!leagueId) return
+    saveState(toSavedState({ players, picks, teams, settings, weights, sleeper }), leagueId)
   }, PERSIST_DEBOUNCE_MS)
 })
+
+window.addEventListener('beforeunload', flushPersist)
 
 // ---------------------------------------------------------------------------
 // Hooks

@@ -58,6 +58,18 @@ export const DEFAULT_SLEEPER: SleeperConfig = {
 export const STORAGE_KEY = 'ddcc:state:v1'
 export const STATE_VERSION = 1
 
+export const LEAGUE_REGISTRY_KEY = 'ddcc:leagues:v1'
+export const LEAGUE_REGISTRY_VERSION = 1
+
+/** Per-league storage key, namespaced off the legacy single-blob key. */
+export function leagueStorageKey(leagueId: string): string {
+  return `${STORAGE_KEY}:${leagueId}`
+}
+
+export function makeLeagueId(): string {
+  return `lg_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+}
+
 /** Normalise weights so they always sum to 1. Guards against bad user input. */
 export function normalizeWeights(w: Weights): Weights {
   const keys = Object.keys(w) as (keyof Weights)[]

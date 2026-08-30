@@ -115,9 +115,12 @@ export function useRecommendation(): Recommendation    // memoised
 
 ```ts
 // persistence.ts
-export function saveState(s: SavedState): void
-export function loadState(): SavedState | null
-export function clearState(): void
+export function saveState(s: SavedState, leagueId: string): void
+export function loadState(leagueId: string): SavedState | null
+export function clearState(leagueId: string): void
+export function loadLeagueRegistry(): LeagueRegistry | null
+export function saveLeagueRegistry(registry: LeagueRegistry): void
+export function loadOrMigrateLeagueRegistry(): LeagueRegistry
 
 // csv.ts
 export const CSV_HEADERS: string[]
