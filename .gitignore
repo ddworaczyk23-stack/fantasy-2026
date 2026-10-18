@@ -1,4 +1,25 @@
+# Dependencies
 node_modules
+
+# Build output
 dist
-.DS_Store
+*.tsbuildinfo
+
+# Test coverage
+coverage
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment / local overrides
+.env
+.env.*
 *.local
+
+# Editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+Thumbs.db
